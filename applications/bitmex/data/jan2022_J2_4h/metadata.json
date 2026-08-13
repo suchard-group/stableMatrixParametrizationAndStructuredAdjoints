@@ -15,7 +15,8 @@
     "type": "logNormalPrior"
   },
   "shrinkage_lambda": 0.1,
-  "stable_matrix_chart": "general dense-R / globally normalized invertible-basis H-SSBP",
+  "rotation_regularization": "log p(R) = C + lambda log|det R| - lambda * dim(R) * ||R||_F^2 / 2",
+  "stable_matrix_chart": "general dense-R raw-entry invertible-basis H-SSBP, without global Frobenius normalization of R",
   "symbols": [
     "XBTUSDT",
     "ETHUSDT",

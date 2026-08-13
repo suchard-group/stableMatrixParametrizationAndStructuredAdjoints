@@ -5,6 +5,7 @@
         BitMEX 5D event MAP: 24 January 2022 recovery, J2_4h, start lambda0p1_random02.
         Time unit: hours from window start. The manuscript Hurwitz drift is -ou.A;
         BEAST uses ou.A as selection strength.
+        Rotation chart: raw. Dimension-scaled Frobenius prior: true.
     -->
 
     <parameter id="diffusion.diagonal" value="0.000153216656644 0.000160722299793 0.000124386661089 0.0001 0.0001" lower="0 0 0 0 0"/>
@@ -23,18 +24,16 @@
     <parameter id="ou.A.t" value="0.102856255853 0.0925566292493" lower="0 0"/>
     <parameter id="ou.mu" value="0 0 0 0 0"/>
 
-    <normalizedMatrixParameter id="ou.A.rotation" normalization="global">
-        <matrixParameter id="ou.A.rotation.raw">
-            <parameter value="1.02228255289 -0.191448564528 -0.0116635470937 0.0325062956798 -0.0620288524005"/>
-            <parameter value="0.0331218768723 0.951832106924 -0.210355722159 -0.164764728778 -0.0564085288602"/>
-            <parameter value="-0.0305873571962 0.210206232779 1.01578558982 0.00507319088774 0.0281192776796"/>
-            <parameter value="0.00771403163358 -0.00638682039723 -0.0452876288316 0.91331142076 -0.0405484677302"/>
-            <parameter value="-0.149743400986 -0.0247690320798 -0.106382712105 -0.126527686163 0.979274252196"/>
-        </matrixParameter>
-    </normalizedMatrixParameter>
+    <matrixParameter id="ou.A.rotation">
+        <parameter value="1.02228255289 -0.191448564528 -0.0116635470937 0.0325062956798 -0.0620288524005"/>
+        <parameter value="0.0331218768723 0.951832106924 -0.210355722159 -0.164764728778 -0.0564085288602"/>
+        <parameter value="-0.0305873571962 0.210206232779 1.01578558982 0.00507319088774 0.0281192776796"/>
+        <parameter value="0.00771403163358 -0.00638682039723 -0.0452876288316 0.91331142076 -0.0405484677302"/>
+        <parameter value="-0.149743400986 -0.0247690320798 -0.106382712105 -0.126527686163 0.979274252196"/>
+    </matrixParameter>
 
     <blockDiagonalPolarStableMatrixParameter id="ou.A" blockRhoOrdering="ascending">
-        <rotationMatrix><normalizedMatrixParameter idref="ou.A.rotation"/></rotationMatrix>
+        <rotationMatrix><matrixParameter idref="ou.A.rotation"/></rotationMatrix>
         <scalarBlock><parameter idref="ou.A.scalar"/></scalarBlock>
         <blockRho><parameter idref="ou.A.rho"/></blockRho>
         <blockTheta><parameter idref="ou.A.theta"/></blockTheta>
@@ -5180,7 +5179,7 @@
     </timeSeriesGradient>
     <timeSeriesGradient id="grad.rotation">
         <likelihood><parallelTimeSeriesLikelihood idref="parallel.series"/></likelihood>
-        <parameter><matrixParameter idref="ou.A.rotation.raw"/></parameter>
+        <parameter><matrixParameter idref="ou.A.rotation"/></parameter>
     </timeSeriesGradient>
     <timeSeriesGradient id="grad.mean">
         <likelihood><parallelTimeSeriesLikelihood idref="parallel.series"/></likelihood>
@@ -5195,8 +5194,8 @@
     <logNormalPrior id="ou.A.rho.prior" mu="0" sigma="1"><parameter idref="ou.A.rho"/></logNormalPrior>
     <uniformPrior id="ou.A.theta.prior" lower="-0.785398163397" upper="0.785398163397"><parameter idref="ou.A.theta"/></uniformPrior>
     <logNormalPrior id="ou.A.t.prior" mu="0" sigma="1"><parameter idref="ou.A.t"/></logNormalPrior>
-    <invertibleMatrixShrinkagePrior id="ou.A.rotation.shrinkagePrior">
-        <matrix><normalizedMatrixParameter idref="ou.A.rotation"/></matrix>
+    <invertibleMatrixShrinkagePrior id="ou.A.rotation.shrinkagePrior" scaleFrobeniusByDimension="true">
+        <matrix><matrixParameter idref="ou.A.rotation"/></matrix>
         <lambda><parameter id="ou.A.rotation.shrinkagePrior.lambda" value="0.1" lower="0.0"/></lambda>
     </invertibleMatrixShrinkagePrior>
     <normalPrior id="ou.mu.prior" mean="0.0" stdev="1.0"><parameter idref="ou.mu"/></normalPrior>
@@ -5235,7 +5234,7 @@
         <parameter idref="ou.A.rho"/>
         <parameter idref="ou.A.theta"/>
         <parameter idref="ou.A.t"/>
-        <matrixParameter idref="ou.A.rotation.raw"/>
+        <matrixParameter idref="ou.A.rotation"/>
         <parameter idref="ou.mu"/>
     </compoundParameter>
 

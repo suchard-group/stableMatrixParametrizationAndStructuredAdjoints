@@ -26,10 +26,13 @@ results/compact/jan2022_J2_4h/
                              response matrices for all five starts
 ```
 
-The MAP fits use the general dense-R / globally normalized invertible-basis
-H-SSBP chart, `blockRhoOrdering="ascending"`, observation variance `1e-5`,
-fixed dense-R shrinkage `lambda=0.1`, and
-`rho ~ LogNormal(mu=0, sigma=1)`.
+The MAP fits use the general dense-R H-SSBP chart with the change-of-basis
+matrix parameterized directly by the raw entries of `R`, not by a globally
+normalized auxiliary matrix.
+They use `blockRhoOrdering="ascending"`, observation variance `1e-5`, fixed
+dense-R shrinkage `lambda=0.1`, and `rho ~ LogNormal(mu=0, sigma=1)`.
+The dense-basis prior is
+`log p(R) = C + lambda log|det R| - lambda * dim(R) * ||R||_F^2 / 2`.
 The XMLs here are regenerated from the original run generator with
 `nIterations=1000`; the raw cluster stdout/log files are not shipped, but the
 compact summaries and matrices are.
