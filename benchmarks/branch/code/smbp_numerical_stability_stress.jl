@@ -402,7 +402,7 @@ function big_lyapunov_adjoint_block(D::Matrix{BigFloat}, seed::Matrix{BigFloat})
 end
 
 function boundary_rows(rng::AbstractRNG, first_seed::Int, n_seeds::Int)
-    dt = 0.7
+    dt = 0.2
     rows = Vector{Vector{Any}}()
 
     setprecision(STABILITY_PRECISION) do
