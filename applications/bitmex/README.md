@@ -15,6 +15,11 @@ data/jan2022_J2_4h/
   metadata.json              analysis settings, priors, best start
   event_metadata.json        trough-selection and BitMEX API metadata
 
+data/jan2022_day_context/
+  events.csv                 plotting data with 08:00--13:00 UTC pre-window
+                             context and the analyzed 13:00--17:00 UTC window
+  metadata.json              context/source metadata and separator location
+
 runs/jan2022_J2_4h/
   lambda0p1_random0*/input.xml
                              deterministic MAP XMLs for the five starts
@@ -52,13 +57,15 @@ This writes `output/bitmex_jan2022_j2_4h_map_row.pdf` and `.png`.
 The default plot uses the highest-posterior MAP start
 `lambda0p1_random04` and shows the manuscript-scale drift matrix, including
 diagonal entries.
+The time-series panel starts at 08:00 UTC and marks the 13:00 UTC start of the
+analyzed recovery window with a dashed vertical line.
 
 The explicit equivalent command is:
 
 ```bash
 Rscript scripts/plot_bitmex_trade_drifts.R \
-  --events data/jan2022_J2_4h/events.csv \
-  --metadata data/jan2022_J2_4h/metadata.json \
+  --events data/jan2022_day_context/events.csv \
+  --metadata data/jan2022_day_context/metadata.json \
   --matrix-csv results/compact/jan2022_J2_4h/matrices/jan2022_J2_4h_lambda0p1_random04_manuscript_drift_matrix.csv \
   --matrix-kind drift \
   --show-diagonal true \

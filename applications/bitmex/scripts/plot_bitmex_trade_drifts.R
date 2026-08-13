@@ -130,8 +130,8 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
     layout = "paper-row",
     burnin_fraction = 0.10,
     invertible_log = "",
-    events = "data/jan2022_J2_4h/events.csv",
-    metadata = "data/jan2022_J2_4h/metadata.json",
+    events = "data/jan2022_day_context/events.csv",
+    metadata = "data/jan2022_day_context/metadata.json",
     matrix_csv = "results/compact/jan2022_J2_4h/matrices/jan2022_J2_4h_lambda0p1_random04_manuscript_drift_matrix.csv",
     matrix_kind = "drift",
     show_diagonal = TRUE,
@@ -203,8 +203,8 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
 default_paths <- function(window) {
   if (window == "jan2022_J2_4h") {
     return(list(
-      events = file.path(PROJECT_ROOT, "data", "jan2022_J2_4h", "events.csv"),
-      metadata = file.path(PROJECT_ROOT, "data", "jan2022_J2_4h", "metadata.json"),
+      events = file.path(PROJECT_ROOT, "data", "jan2022_day_context", "events.csv"),
+      metadata = file.path(PROJECT_ROOT, "data", "jan2022_day_context", "metadata.json"),
       orthogonal_log = ""
     ))
   }
@@ -630,14 +630,29 @@ extract_legend <- function(plot) {
   grob$grobs[[guide_indices[[1L]]]]
 }
 
-make_paper_row_figure <- function(window, events, symbols, drift_matrix, out_prefix, layout, matrix_kind = "selection", show_diagonal = FALSE) {
+make_paper_row_figure <- function(window, events, symbols, drift_matrix, out_prefix, layout, matrix_kind = "selection", show_diagonal = FALSE, time_context = NULL) {
   display <- if (matrix_kind == "selection") -drift_matrix else drift_matrix
   if (!show_diagonal) diag(display) <- NA_real_
   vmax <- display_vmax(display)
   legend_style <- if (layout == "paper-row") "inside" else "bottom"
+  time_series <- series_plot(events, symbols, window, legend_style = legend_style)
+  if (!is.null(time_context)) {
+    time_series <- time_series +
+      geom_vline(xintercept = time_context$separator, linewidth = 0.45, linetype = "22", colour = "black") +
+      scale_x_continuous(
+        breaks = time_context$breaks,
+        labels = time_context$labels,
+        expand = expansion(mult = c(0, 0.01))
+      ) +
+      coord_cartesian(xlim = time_context$xlim) +
+      theme(
+        legend.position = c(0.94, 0.965),
+        legend.justification = c(1, 1)
+      )
+  }
   plot <- suppressWarnings(
     cowplot::plot_grid(
-      series_plot(events, symbols, window, legend_style = legend_style),
+      time_series,
       heatmap_plot(drift_matrix, symbols, vmax, matrix_kind = matrix_kind, show_diagonal = show_diagonal),
       nrow = 1,
       rel_widths = paper_row_rel_widths(layout),
@@ -674,6 +689,16 @@ main <- function() {
   DIMENSION <<- length(symbols)
   events_path <- if (nzchar(args$events)) resolve_input_path(args$events) else paths$events
   events <- read_events(events_path, symbols)
+  time_context <- NULL
+  if (!is.null(metadata$vertical_separator_time_hours)) {
+    attr(events, "time_axis_label") <- "UTC hour on 24 January 2022"
+    time_context <- list(
+      separator = as.numeric(metadata$vertical_separator_time_hours),
+      xlim = c(8, 17),
+      breaks = c(8, 10, 12, 13, 15, 17),
+      labels = c("8", "10", "12", "13", "15", "17")
+    )
+  }
 
   drift_matrix <- NULL
   matrix_kind <- args$matrix_kind
@@ -705,7 +730,7 @@ main <- function() {
     matrix_kind <- "selection"
   }
 
-  paths <- make_paper_row_figure(args$window, events, symbols, drift_matrix, out_prefix, args$layout, matrix_kind = matrix_kind, show_diagonal = args$show_diagonal)
+  paths <- make_paper_row_figure(args$window, events, symbols, drift_matrix, out_prefix, args$layout, matrix_kind = matrix_kind, show_diagonal = args$show_diagonal, time_context = time_context)
   cat("wrote=", paths[[1]], "\n", sep = "")
   cat("wrote=", paths[[2]], "\n", sep = "")
 }
