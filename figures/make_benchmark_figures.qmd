@@ -1,0 +1,2955 @@
+---
+title: "OU Benchmark Figures"
+author: "Filippo Monti"
+format:
+  html:
+    toc: true
+    df-print: paged
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+options(stringsAsFactors = FALSE)
+
+required_packages <- c(
+  "dplyr", "forcats", "fs", "ggplot2", "patchwork", "readr",
+  "scales", "showtext", "stringr", "sysfonts", "tibble", "tidyr"
+)
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+if (length(missing_packages) > 0L) {
+  stop(
+    "Install missing packages before rendering: ",
+    paste(missing_packages, collapse = ", "),
+    call. = FALSE
+  )
+}
+
+suppressPackageStartupMessages({
+  lapply(required_packages, library, character.only = TRUE)
+})
+
+benchmark_root <- fs::path_norm(Sys.getenv(
+  "OU_BENCHMARK_ROOT",
+  ".."
+))
+if (!fs::dir_exists(fs::path(benchmark_root, "benchmarks"))) {
+  stop(
+    "Could not locate the public-code repo root (expected a benchmarks/ ",
+    "subdir) from ", benchmark_root, ". Render this file from ",
+    "public-code/figures/, or set OU_BENCHMARK_ROOT explicitly.",
+    call. = FALSE
+  )
+}
+benchmark_data_path <- fs::path(benchmark_root, "benchmarks")
+branch_results_path <- fs::path(benchmark_data_path, "branch", "results")
+figure_output_paths <- fs::path_norm(Sys.getenv(
+  "OU_FIGURE_OUTPUT",
+  fs::path(benchmark_root, "figures", "output")
+))
+
+fs::dir_create(c(
+  figure_output_paths,
+  branch_results_path
+))
+
+# CMU Serif / Latin Modern Math give the closest visual match to the
+# manuscript's rendered figures. Both fall back gracefully (to "serif") if
+# not installed locally; install CMU Serif (https://www.fontsquirrel.com/fonts/computer-modern)
+# and Latin Modern Math (https://www.gust.org.pl/projects/e-foundry/lm-math)
+# to reproduce the shipped PDFs byte-for-byte.
+cmu_font_candidates <- list(
+  regular = c(
+    fs::path_home("Library", "Fonts", "cmunrm.otf"),
+    "/usr/share/fonts/opentype/cmu/cmunrm.otf",
+    "/usr/share/fonts/truetype/cmu/cmunrm.otf"
+  ),
+  italic = c(
+    fs::path_home("Library", "Fonts", "cmunti.otf"),
+    "/usr/share/fonts/opentype/cmu/cmunti.otf",
+    "/usr/share/fonts/truetype/cmu/cmunti.otf"
+  ),
+  bold = c(
+    fs::path_home("Library", "Fonts", "cmunbx.otf"),
+    "/usr/share/fonts/opentype/cmu/cmunbx.otf",
+    "/usr/share/fonts/truetype/cmu/cmunbx.otf"
+  ),
+  bolditalic = c(
+    fs::path_home("Library", "Fonts", "cmunbi.otf"),
+    "/usr/share/fonts/opentype/cmu/cmunbi.otf",
+    "/usr/share/fonts/truetype/cmu/cmunbi.otf"
+  )
+)
+find_first_font <- function(paths) {
+  existing <- paths[fs::file_exists(paths)]
+  if (length(existing) > 0) existing[1] else NA_character_
+}
+cmu_paths <- lapply(cmu_font_candidates, find_first_font)
+if (!is.na(cmu_paths$regular)) {
+  sysfonts::font_add(
+    "CMU Serif",
+    regular = cmu_paths$regular,
+    italic = cmu_paths$italic,
+    bold = cmu_paths$bold,
+    bolditalic = cmu_paths$bolditalic
+  )
+}
+
+lm_math_candidates <- c(
+  "/Library/TeX/Root/texmf-dist/fonts/opentype/public/lm-math/latinmodern-math.otf",
+  "/usr/share/fonts/opentype/public/lm-math/latinmodern-math.otf"
+)
+lm_math_path <- find_first_font(lm_math_candidates)
+if (!is.na(lm_math_path)) {
+  sysfonts::font_add("lmmath", lm_math_path)
+}
+
+stix_text_regular_candidates <- c(
+  "/System/Library/Fonts/Supplemental/STIXTwoText.ttf",
+  "/usr/share/fonts/opentype/stix/STIXTwoText-Regular.otf"
+)
+stix_text_italic_candidates <- c(
+  "/System/Library/Fonts/Supplemental/STIXTwoText-Italic.ttf",
+  "/usr/share/fonts/opentype/stix/STIXTwoText-Italic.otf"
+)
+stix_text_regular <- stix_text_regular_candidates[fs::file_exists(stix_text_regular_candidates)][1]
+stix_text_italic <- stix_text_italic_candidates[fs::file_exists(stix_text_italic_candidates)][1]
+if (!is.na(stix_text_regular) && !is.na(stix_text_italic)) {
+  sysfonts::font_add(
+    "STIXTwoText",
+    regular = stix_text_regular,
+    italic = stix_text_italic
+  )
+}
+
+stix_math_candidates <- c(
+  "/System/Library/Fonts/Supplemental/STIXTwoMath.otf",
+  "/usr/share/fonts/opentype/stix/STIXTwoMath-Regular.otf"
+)
+stix_math_path <- stix_math_candidates[fs::file_exists(stix_math_candidates)][1]
+if (!is.na(stix_math_path)) {
+  sysfonts::font_add("STIXTwoMath", regular = stix_math_path)
+}
+math_annotation_family <- if ("STIXTwoText" %in% sysfonts::font_families()) {
+  "STIXTwoText"
+} else if ("STIXTwoMath" %in% sysfonts::font_families()) {
+  "STIXTwoMath"
+} else {
+  "serif"
+}
+showtext::showtext_auto(enable = TRUE)
+
+read_benchmark_csv <- function(...) {
+  readr::read_csv(fs::path(...), show_col_types = FALSE)
+}
+
+save_benchmark_plot <- function(plot, filename, width, height) {
+  paths <- fs::path(figure_output_paths, filename)
+  for (path in paths) {
+    ggplot2::ggsave(path, plot = plot, width = width, height = height, dpi = 300)
+  }
+  invisible(paths)
+}
+
+save_benchmark_pdf <- function(plot, basename, width, height) {
+  save_benchmark_plot(plot, paste0(basename, ".pdf"), width, height)
+}
+
+save_benchmark_text <- function(lines, filename) {
+  paths <- fs::path(figure_output_paths, filename)
+  for (path in paths) {
+    writeLines(lines, path)
+  }
+  invisible(paths)
+}
+
+paper_theme <- function(base_size = 9) {
+  theme_classic(base_size = base_size, base_family = "serif") +
+    theme(
+      axis.line = element_line(linewidth = 0.3),
+      axis.ticks = element_line(linewidth = 0.3),
+      axis.text = element_text(color = "black"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.35),
+      strip.background = element_rect(fill = "grey93", color = "black", linewidth = 0.3),
+      strip.text = element_text(face = "bold"),
+      plot.title = element_text(face = "bold", hjust = 0),
+      plot.subtitle = element_text(color = "grey25")
+    )
+}
+
+kernel_colors <- c(
+  "SSBP (R invertible, LDU)" = "#2F67B1",
+  "SSBP (R orthogonal)" = "#228B22",
+  "SSBP block only" = "#6F7B82",
+  "Dense" = "#D4960A",
+  "Known Schur" = "#9B4356",
+  "Schur Parlett" = "#D67C2F"
+)
+
+kernel_alpha <- c(
+  "SSBP (R invertible, LDU)" = 1,
+  "SSBP (R orthogonal)" = 1,
+  "SSBP block only" = 0.7,
+  "Dense" = 1,
+  "Known Schur" = 1,
+  "Schur Parlett" = 1
+)
+
+kernel_linetypes <- c(
+  "SSBP (R invertible, LDU)" = "solid",
+  "SSBP (R orthogonal)" = "42",
+  "SSBP block only" = "solid",
+  "Dense" = "longdash",
+  "Known Schur" = "longdash",
+  "Schur Parlett" = "longdash"
+)
+```
+
+# Julia Kernel Benchmarks
+
+The kernel panels read the precomputed CSV files in `benchmarks/branch/results`. The current
+figure filters those files to `K = 4, 8, 16, 32, 64`; no Julia benchmarks are run
+by this document.
+
+```{r kernel-data}
+schur_smbp <- read_benchmark_csv(branch_results_path, "schur_vs_smbp_exp_adjoint_results.csv")
+edge_push <- read_benchmark_csv(branch_results_path, "edge_message_push_results.csv")
+lyapunov <- read_benchmark_csv(branch_results_path, "lyapunov_stationary_variance_results.csv")
+branch_lyapunov <- read_benchmark_csv(branch_results_path, "branch_likelihood_with_lyapunov_results.csv")
+branch_cov_adjoint <- read_benchmark_csv(branch_results_path, "branch_covariance_adjoint_results.csv")
+
+keep_k <- c(4L, 8L, 16L, 32L, 64L)
+
+ensure_benchmark_column <- function(data, column, fallback) {
+  if (!column %in% names(data)) {
+    data[[column]] <- data[[fallback]]
+  }
+  data
+}
+
+schur_smbp <- schur_smbp %>%
+  ensure_benchmark_column("smbp_exp_ldu_with_rotation_ms", "smbp_exp_with_rotation_ms") %>%
+  ensure_benchmark_column("smbp_adj_ldu_with_rotation_ms", "smbp_adj_with_rotation_ms")
+lyapunov <- lyapunov %>%
+  ensure_benchmark_column("smbp_ldu_lyap_ms", "smbp_rotation_lyap_ms")
+edge_push <- edge_push %>%
+  ensure_benchmark_column("smbp_ldu_full_edge_with_rotation_ms", "smbp_full_edge_with_rotation_ms")
+branch_lyapunov <- branch_lyapunov %>%
+  ensure_benchmark_column("smbp_branch_lyap_ldu_rotation_ms", "smbp_branch_lyap_rotation_ms")
+
+kernel_timings <- bind_rows(
+  schur_smbp %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Matrix exponential",
+      Dense = dense_exp_ms,
+      `Known Schur` = schur_exp_ms,
+      `Schur Parlett` = schur_parlett_exp_ms,
+      `SSBP block only` = smbp_block_exp_ms,
+      `SSBP (R orthogonal)` = smbp_exp_with_rotation_ms,
+      `SSBP (R invertible, LDU)` = smbp_exp_ldu_with_rotation_ms
+    ),
+  schur_smbp %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Matrix exp. adjoint",
+      Dense = dense_adj_ms,
+      `Known Schur` = schur_adj_ms,
+      `SSBP block only` = smbp_adj_apply_ms,
+      `SSBP (R orthogonal)` = smbp_adj_with_rotation_ms,
+      `SSBP (R invertible, LDU)` = smbp_adj_ldu_with_rotation_ms
+    ),
+  lyapunov %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Lyapunov Equation",
+      Dense = dense_lyap_ms,
+      `Known Schur` = schur_known_lyap_ms,
+      `SSBP (R orthogonal)` = smbp_rotation_lyap_ms,
+      `SSBP (R invertible, LDU)` = smbp_ldu_lyap_ms
+    ),
+  edge_push %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Full edge message",
+      Dense = dense_full_edge_ms,
+      `Known Schur` = schur_known_basis_full_edge_ms,
+      `SSBP block only` = smbp_block_full_edge_ms,
+      `SSBP (R orthogonal)` = smbp_full_edge_with_rotation_ms,
+      `SSBP (R invertible, LDU)` = smbp_ldu_full_edge_with_rotation_ms
+    ),
+  branch_lyapunov %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Branch + Lyapunov",
+      Dense = dense_branch_lyap_ms,
+      `Known Schur` = schur_branch_lyap_ms,
+      `SSBP (R orthogonal)` = smbp_branch_lyap_rotation_ms,
+      `SSBP (R invertible, LDU)` = smbp_branch_lyap_ldu_rotation_ms
+    )
+) %>%
+  pivot_longer(
+    cols = -c(K, benchmark),
+    names_to = "method",
+    values_to = "milliseconds",
+    values_drop_na = TRUE
+  ) %>%
+  filter(milliseconds > 0) %>%
+  mutate(
+    method = factor(method, levels = names(kernel_colors)),
+    benchmark = factor(
+      benchmark,
+      levels = c(
+        "Matrix exponential", "Matrix exp. adjoint",
+        "Lyapunov Equation", "Full edge message",
+        "Branch + Lyapunov"
+      )
+    )
+  )
+```
+
+```{r kernel-figure, fig.width=10, fig.height=6.8}
+fnt <- "CMU Serif"
+fsz <- 10
+fszT <- 12
+
+kernel_methods <- names(kernel_colors)
+kernel_lw <- c(
+  "SSBP (R invertible, LDU)" = 1.0,
+  "SSBP (R orthogonal)" = 0.95,
+  "SSBP block only" = 0.8,
+  "Dense" = 0.5,
+  "Known Schur" = 0.5,
+  "Schur Parlett" = 0.5
+)
+kernel_lty_legend <- c(
+  "SSBP (R invertible, LDU)" = "solid",
+  "SSBP (R orthogonal)" = "42",
+  "SSBP block only" = "solid",
+  "Dense" = "32",
+  "Known Schur" = "32",
+  "Schur Parlett" = "32"
+)
+
+kernel_panel_limits <- function(data, pad = 1.8) {
+  values <- data$milliseconds
+  values <- values[is.finite(values) & values > 0]
+  if (length(values) == 0L) {
+    return(c(1e-4, 1))
+  }
+  c(min(values) / pad, max(values) * pad)
+}
+
+kernel_curve_y_at <- function(data, method_value, x_value) {
+  curve <- data %>%
+    filter(method == method_value, is.finite(milliseconds), milliseconds > 0) %>%
+    arrange(K)
+  if (nrow(curve) == 0L) {
+    return(NA_real_)
+  }
+  10^approx(
+    x = log2(curve$K),
+    y = log10(curve$milliseconds),
+    xout = log2(x_value),
+    rule = 2
+  )$y
+}
+
+kernel_cubic_reference <- function(data, anchor_method,
+                                   anchor_k = 64L, start_k = 16L) {
+  anchor <- data %>%
+    filter(K == anchor_k, method == anchor_method, milliseconds > 0) %>%
+    slice(1L)
+  if (nrow(anchor) == 0L) {
+    return(tibble())
+  }
+  k_values <- keep_k[keep_k >= start_k & keep_k <= anchor_k]
+  tibble(
+    anchor_method = anchor_method,
+    K = k_values,
+    milliseconds = anchor$milliseconds[[1L]] * (k_values / anchor_k)^3
+  )
+}
+
+kernel_cubic_reference_label <- function(data, anchor_method,
+                                         anchor_k = 64L, label_k = 20,
+                                         label_scale = 1.35) {
+  anchor <- data %>%
+    filter(K == anchor_k, method == anchor_method, milliseconds > 0) %>%
+    slice(1L)
+  if (nrow(anchor) == 0L) {
+    return(tibble())
+  }
+  tibble(
+    anchor_method = anchor_method,
+    K = label_k,
+    milliseconds = label_scale * anchor$milliseconds[[1L]] * (label_k / anchor_k)^3,
+    label = "K^3"
+  )
+}
+
+kernel_best_arrow_label <- function(data, k_value, y_start, y_end) {
+  y_low <- min(y_start, y_end)
+  y_high <- max(y_start, y_end)
+  y_mid <- sqrt(y_start * y_end)
+  y_limits <- kernel_panel_limits(data)
+
+  candidates <- tibble(
+    x_label = c(k_value * 1.14, k_value / 1.14, k_value * 1.08, k_value / 1.08),
+    y_label = c(y_mid, y_mid, y_low / 1.55, y_low / 1.55),
+    hjust = c(0, 1, 0, 1),
+    vjust = c(0.5, 0.5, 1, 1),
+    placement = c("right", "left", "below-right", "below-left")
+  ) %>%
+    filter(
+      x_label >= min(keep_k) * 0.92,
+      x_label <= max(keep_k) * 1.10,
+      y_label >= y_limits[[1L]],
+      y_label <= y_limits[[2L]]
+    )
+
+  if (nrow(candidates) == 0L) {
+    return(tibble(x_label = k_value, y_label = y_mid, hjust = 0.5, vjust = 0.5))
+  }
+
+  methods <- unique(as.character(data$method))
+  candidates %>%
+    rowwise() %>%
+    mutate(
+      clearance = min(abs(log10(y_label) - log10(vapply(
+        methods,
+        function(method_value) kernel_curve_y_at(data, method_value, x_label),
+        numeric(1)
+      ))), na.rm = TRUE),
+      score = clearance + if_else(str_detect(placement, "below"), 0.04, 0)
+    ) %>%
+    ungroup() %>%
+    arrange(desc(score)) %>%
+    slice(1L) %>%
+    select(x_label, y_label, hjust, vjust)
+}
+
+kernel_panel <- function(data, title) {
+  d <- data %>%
+    filter(method %in% kernel_methods) %>%
+    mutate(method = factor(method, levels = kernel_methods))
+  cubic_reference <- bind_rows(
+    kernel_cubic_reference(d, "SSBP (R invertible, LDU)"),
+    kernel_cubic_reference(d, "Known Schur")
+  )
+  cubic_reference_label <- bind_rows(
+    kernel_cubic_reference_label(d, "SSBP (R invertible, LDU)", label_k = 20),
+    kernel_cubic_reference_label(d, "Known Schur", label_k = 18)
+  )
+
+  p <- ggplot(
+    d,
+    aes(
+      K,
+      milliseconds,
+      colour = method,
+      shape = method,
+      alpha = method,
+      linetype = method,
+      linewidth = method
+    )
+  ) +
+    geom_line(
+      data = cubic_reference,
+      aes(x = K, y = milliseconds, group = anchor_method),
+      inherit.aes = FALSE,
+      colour = "grey35",
+      linetype = "22",
+      linewidth = 0.35
+    ) +
+    geom_line() +
+    geom_point(
+      data = d,
+      aes(x = K, y = milliseconds),
+      inherit.aes = FALSE,
+      colour = "white",
+      alpha = 1,
+      size = 1.9,
+      stroke = 0
+    ) +
+    geom_point(size = 1.9) +
+    scale_x_continuous(
+      trans = "log2",
+      breaks = keep_k,
+      labels = as.character(keep_k),
+      expand = expansion(mult = c(0.05, 0.14))
+    ) +
+    scale_y_log10(
+      breaks = 10^(-6:6),
+      labels = function(x) {
+        pow <- log10(x)
+        ifelse(
+          pow %% 2 == 0,
+          scales::math_format(10^.x)(pow),
+          ""
+        )
+      },
+      minor_breaks = NULL
+    ) +
+    coord_cartesian(ylim = kernel_panel_limits(d)) +
+    scale_colour_manual(values = kernel_colors[kernel_methods], name = NULL) +
+    scale_shape_manual(values = rep(16L, length(kernel_methods)), name = NULL) +
+    scale_alpha_manual(values = kernel_alpha[kernel_methods], name = NULL) +
+    scale_linetype_manual(values = kernel_linetypes[kernel_methods], name = NULL) +
+    scale_linewidth_manual(values = kernel_lw[kernel_methods], name = NULL) +
+    labs(x = NULL, y = NULL, title = title) +
+    theme_classic(base_size = fszT, base_family = fnt) +
+    theme(
+      aspect.ratio = 1,
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+      panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_blank(),
+      axis.ticks = element_line(linewidth = 0.3),
+      axis.text = element_text(size = fsz, family = fnt, color = "black"),
+      axis.title = element_text(size = fszT, family = fnt, color = "black"),
+      plot.title = element_text(
+        hjust = 0.5,
+        size = fszT,
+        family = fnt,
+        face = "bold",
+        margin = margin(0, 0, 1, 0, "pt")
+      ),
+      plot.margin = margin(-2, 4, -2, 1, "pt"),
+      legend.position = "none"
+    )
+
+  if (nrow(cubic_reference_label) > 0L) {
+    p <- p +
+      geom_text(
+        data = cubic_reference_label,
+        aes(x = K, y = milliseconds, label = label),
+        inherit.aes = FALSE,
+        parse = TRUE,
+        size = 3.0,
+        family = fnt,
+        colour = "grey25"
+      )
+  }
+
+  arrow_rows <- bind_rows(lapply(c(8L, 32L), function(k_value) {
+    smbp_row <- d %>%
+      filter(K == k_value, method == "SSBP (R invertible, LDU)")
+    competitor_row <- d %>%
+      filter(K == k_value, !str_detect(as.character(method), "^SSBP")) %>%
+      arrange(milliseconds) %>%
+      slice(1L)
+
+    if (nrow(smbp_row) == 0L || nrow(competitor_row) == 0L) {
+      return(tibble())
+    }
+
+    competitor_ms <- competitor_row$milliseconds[[1L]]
+    smbp_ms <- smbp_row$milliseconds[[1L]]
+    label_position <- kernel_best_arrow_label(d, k_value, competitor_ms, smbp_ms)
+    arrow_gap <- 1.28
+    tibble(
+      K = k_value,
+      y_start = competitor_ms / arrow_gap,
+      y_end = smbp_ms * arrow_gap,
+      x_label = label_position$x_label,
+      y_label = label_position$y_label,
+      hjust = label_position$hjust,
+      vjust = label_position$vjust,
+      label = if (competitor_ms / smbp_ms >= 10) {
+        paste0(round(competitor_ms / smbp_ms), "x")
+      } else {
+        paste0(signif(competitor_ms / smbp_ms, 2), "x")
+      }
+    )
+  }))
+
+  if (nrow(arrow_rows) > 0L) {
+    p <- p +
+      geom_segment(
+        data = arrow_rows,
+        aes(x = K, xend = K, y = y_start, yend = y_end),
+        inherit.aes = FALSE,
+        colour = "black",
+        linewidth = 0.3,
+        arrow = arrow(type = "open", length = grid::unit(0.05, "inches"))
+      ) +
+      geom_text(
+        data = arrow_rows,
+        aes(x = x_label, y = y_label, label = label, hjust = hjust, vjust = vjust),
+        inherit.aes = FALSE,
+        size = 3.2,
+        family = fnt,
+        colour = "black"
+      )
+  }
+
+  p
+}
+
+kernel_y_lab <- wrap_elements(
+  grid::textGrob(
+    "Time (ms)",
+    rot = 90,
+    gp = grid::gpar(fontsize = fszT, fontfamily = fnt)
+  )
+)
+
+kernel_x_lab <- wrap_elements(
+  full = grid::textGrob(
+    "State dimension (K)",
+    y = grid::unit(1, "npc"),
+    just = c("centre", "top"),
+    gp = grid::gpar(fontsize = fszT, fontfamily = fnt)
+  )
+)
+
+kernel_leg_panel <- function(methods = kernel_methods) {
+  c1x <- 0.10
+  c2x <- 0.43
+  seg <- 0.030
+  gap <- 0.018
+  proposed <- methods[str_detect(methods, "^SSBP")]
+  benchmarks <- setdiff(methods, proposed)
+
+  leg_df <- tibble(
+    method = factor(c(proposed, benchmarks), levels = names(kernel_colors)),
+    label = c(proposed, benchmarks),
+    x_seg0 = c(rep(c1x, length(proposed)), rep(c2x, length(benchmarks))),
+    y = c(
+      seq(1.6, by = -0.8, length.out = length(proposed)),
+      seq(1.9, by = -0.8, length.out = length(benchmarks))
+    )
+  ) %>%
+    mutate(x_lab = x_seg0 + seg + gap)
+  leg_titles <- tibble(
+    label = c("Proposed methods", "Dense baselines"),
+    x = c(c1x, c2x),
+    y = c(2.9, 2.9)
+  )
+
+  ggplot() +
+    geom_text(
+      data = leg_titles,
+      aes(x = x, y = y, label = label),
+      hjust = 0,
+      size = 3.5,
+      family = fnt,
+      fontface = "bold",
+      colour = "grey10",
+      inherit.aes = FALSE
+    ) +
+    geom_segment(
+      data = leg_df,
+      aes(
+        x = x_seg0,
+        xend = x_seg0 + seg,
+        y = y,
+        yend = y,
+        colour = method,
+        alpha = method,
+        linetype = method,
+        linewidth = method
+      ),
+      show.legend = FALSE,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = leg_df,
+      aes(x = x_lab, y = y, label = label),
+      hjust = 0,
+      size = 3.5,
+      family = fnt,
+      colour = "grey20",
+      inherit.aes = FALSE
+    ) +
+    scale_colour_manual(values = kernel_colors[methods]) +
+    scale_alpha_manual(values = kernel_alpha[methods]) +
+    scale_linetype_manual(values = kernel_lty_legend[methods]) +
+    scale_linewidth_manual(values = kernel_lw[methods]) +
+    scale_x_continuous(limits = c(0, 0.95)) +
+    scale_y_continuous(limits = c(-0.7, 3.3)) +
+    theme_void() +
+    theme(legend.position = "none")
+}
+
+kernel_titles <- levels(kernel_timings$benchmark)
+kernel_panels <- lapply(kernel_titles, function(title) {
+  kernel_panel(filter(kernel_timings, benchmark == title), title)
+})
+
+kernel_fig <- wrap_plots(
+  kernel_y_lab,
+  kernel_panels[[1]],
+  kernel_panels[[2]],
+  kernel_panels[[3]],
+  kernel_panels[[4]],
+  kernel_panels[[5]],
+  kernel_x_lab,
+  kernel_leg_panel(),
+  design = "
+ABCD
+#EF#
+#GG#
+#HH#
+",
+  widths = c(0.06, 1, 1, 1),
+  heights = c(1, 1, 0.05, 0.26)
+)
+
+kernel_fig
+```
+
+```{r exp-adjoint-cached-figure, fig.width=10, fig.height=5.8}
+schur_smbp_cached <- schur_smbp %>%
+  ensure_benchmark_column("schur_basis_exp_ms", "schur_exp_ms") %>%
+  ensure_benchmark_column("schur_basis_adj_ms", "schur_adj_ms")
+
+lyapunov_cached <- lyapunov %>%
+  ensure_benchmark_column("schur_basis_lyap_ms", "schur_known_lyap_ms") %>%
+  ensure_benchmark_column("smbp_basis_lyap_ms", "smbp_rotation_lyap_ms") %>%
+  ensure_benchmark_column("smbp_ldu_basis_lyap_ms", "smbp_ldu_lyap_ms")
+
+focused_methods <- c(
+  "H-SSBP",
+  # "H-SSBP (R orthogonal)",
+  "Known Schur",
+  "Dense (cached)"
+)
+
+focused_colors <- c(
+  "H-SSBP" = kernel_colors[["SSBP (R invertible, LDU)"]],
+  # "H-SSBP (R orthogonal)" = "#86A9CF",
+  "Known Schur" = kernel_colors[["Known Schur"]],
+  "Dense (cached)" = kernel_colors[["Dense"]]
+)
+
+focused_linetypes <- c(
+  "H-SSBP" = "solid",
+  # "H-SSBP (R orthogonal)" = "solid",
+  "Known Schur" = kernel_lty_legend[["Known Schur"]],
+  "Dense (cached)" = kernel_lty_legend[["Dense"]]
+)
+
+focused_lw <- c(
+  "H-SSBP" = 1.0,
+  # "H-SSBP (R orthogonal)" = 0.55,
+  "Known Schur" = 0.65,
+  "Dense (cached)" = 0.65
+)
+
+exp_adjoint_cached <- bind_rows(
+  schur_smbp_cached %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Matrix exponential",
+      `H-SSBP` = smbp_block_exp_ms,
+      # `H-SSBP (R orthogonal)` = smbp_block_exp_ms,
+      `Known Schur` = schur_basis_exp_ms,
+      `Dense (cached)` = dense_exp_ms
+    ),
+  schur_smbp_cached %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Matrix exp. adjoint",
+      `H-SSBP` = smbp_adj_apply_ms,
+      # `H-SSBP (R orthogonal)` = smbp_adj_apply_ms,
+      `Known Schur` = schur_basis_adj_ms,
+      `Dense (cached)` = dense_adj_ms
+    ),
+  lyapunov_cached %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Lyapunov equation",
+      `H-SSBP` = smbp_ldu_basis_lyap_ms,
+      # `H-SSBP (R orthogonal)` = smbp_basis_lyap_ms,
+      `Known Schur` = schur_basis_lyap_ms,
+      `Dense (cached)` = dense_lyap_ms
+    ),
+  edge_push %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Full edge message",
+      `H-SSBP` = smbp_ldu_full_edge_with_rotation_ms,
+      # `H-SSBP (R orthogonal)` = smbp_full_edge_with_rotation_ms,
+      `Known Schur` = schur_known_basis_full_edge_ms,
+      `Dense (cached)` = dense_full_edge_ms
+    ),
+  branch_cov_adjoint %>%
+    filter(K %in% keep_k) %>%
+    transmute(
+      K,
+      benchmark = "Full edge message gradient",
+      `H-SSBP` = smbp_basis_branch_cov_adj_ms,
+      `Known Schur` = schur_basis_branch_cov_adj_ms,
+      `Dense (cached)` = dense_branch_cov_adj_ms
+    )
+) %>%
+  pivot_longer(
+    cols = -c(K, benchmark),
+    names_to = "method",
+    values_to = "milliseconds",
+    values_drop_na = TRUE
+  ) %>%
+  filter(is.finite(milliseconds), milliseconds > 0) %>%
+  mutate(
+    method = factor(method, levels = focused_methods),
+    benchmark = factor(
+      benchmark,
+      levels = c(
+        "Matrix exponential", "Matrix exp. adjoint",
+        "Lyapunov equation", "Full edge message", "Full edge message gradient"
+      )
+    )
+  )
+
+focused_panel_limits <- function(data, pad = 1.7) {
+  values <- data$milliseconds
+  values <- values[is.finite(values) & values > 0]
+  c(min(values) / pad, max(values) * pad)
+}
+
+focused_y_labels <- function(x) {
+  pow <- log10(x)
+  ifelse(
+    pow %% 2 == 0,
+    scales::math_format(10^.x)(pow),
+    ""
+  )
+}
+
+focused_best_arrow_label <- function(data, k_value, y_start, y_end, y_limits = NULL) {
+  y_low <- min(y_start, y_end)
+  y_mid <- sqrt(y_start * y_end)
+  if (is.null(y_limits)) {
+    y_limits <- focused_panel_limits(data)
+  }
+
+  candidates <- tibble(
+    x_label = c(k_value * 1.14, k_value / 1.14, k_value * 1.08, k_value / 1.08),
+    y_label = c(y_mid, y_mid, y_low / 1.55, y_low / 1.55),
+    hjust = c(0, 1, 0, 1),
+    vjust = c(0.5, 0.5, 1, 1),
+    placement = c("right", "left", "below-right", "below-left")
+  ) %>%
+    filter(
+      x_label >= min(keep_k) * 0.92,
+      x_label <= max(keep_k) * 1.10,
+      y_label >= y_limits[[1L]],
+      y_label <= y_limits[[2L]]
+    )
+
+  if (nrow(candidates) == 0L) {
+    return(tibble(x_label = k_value, y_label = y_mid, hjust = 0.5, vjust = 0.5))
+  }
+
+  methods <- unique(as.character(data$method))
+  candidates %>%
+    rowwise() %>%
+    mutate(
+      clearance = min(abs(log10(y_label) - log10(vapply(
+        methods,
+        function(method_value) kernel_curve_y_at(data, method_value, x_label),
+        numeric(1)
+      ))), na.rm = TRUE),
+      score = clearance + if_else(str_detect(placement, "below"), 0.04, 0)
+    ) %>%
+    ungroup() %>%
+    arrange(desc(score)) %>%
+    slice(1L) %>%
+    select(x_label, y_label, hjust, vjust)
+}
+
+focused_arrow_rows <- function(data, y_limits = NULL) {
+  bind_rows(lapply(c(8L, 32L), function(k_value) {
+    smbp_row <- data %>%
+      filter(K == k_value, method == "H-SSBP")
+    competitor_row <- data %>%
+      filter(K == k_value, method %in% c("Known Schur", "Dense (cached)")) %>%
+      arrange(milliseconds) %>%
+      slice(1L)
+
+    if (nrow(smbp_row) == 0L || nrow(competitor_row) == 0L) {
+      return(tibble())
+    }
+
+    competitor_ms <- competitor_row$milliseconds[[1L]]
+    smbp_ms <- smbp_row$milliseconds[[1L]]
+    is_lyapunov_panel <- unique(as.character(data$benchmark))[[1L]] == "Lyapunov equation"
+    label_position <- if (is_lyapunov_panel) {
+      tibble(
+        x_label = k_value * 1.08,
+        y_label = smbp_ms / 1.55,
+        hjust = 0,
+        vjust = 1
+      )
+    } else {
+      focused_best_arrow_label(data, k_value, competitor_ms, smbp_ms, y_limits)
+    }
+    arrow_gap <- 1.28
+    speedup <- competitor_ms / smbp_ms
+    tibble(
+      K = k_value,
+      y_start = competitor_ms / arrow_gap,
+      y_end = smbp_ms * arrow_gap,
+      x_label = label_position$x_label,
+      y_label = label_position$y_label,
+      hjust = label_position$hjust,
+      vjust = label_position$vjust,
+      label = if (speedup < 5) {
+        paste0(round(speedup), "x")
+      } else {
+        paste0(round(speedup / 5) * 5, "x")
+      }
+    )
+  }))
+}
+
+first_three_limits <- exp_adjoint_cached %>%
+  filter(benchmark %in% c("Matrix exponential", "Matrix exp. adjoint", "Lyapunov equation")) %>%
+  focused_panel_limits()
+
+# Scale text elements so they land at the same printed sizes as the
+# ssbp-vs-lyapunov-param-stability figure's combo_panel_theme, once this
+# 10in-wide figure is placed at 0.98\textwidth in the same 6.5in-textwidth,
+# 12pt document (printed pt = raw ggplot pt * focused_scale_down). See the
+# combo_scale_down/combo_font_scale comment above the
+# ssbp-vs-lyapunov-param-stability-figure chunk for the derivation; this is
+# the same formula evaluated at this figure's own native width (10in vs
+# 9.2in) so the two figures' printed font sizes match despite differing.
+focused_scale_down <- 0.98 * 6.5 / 10
+focused_font_scale <- (12 / focused_scale_down) / 9
+focused_title_pt <- 8 * focused_font_scale
+# Ratio applied to this figure's other hand-tuned annotation/legend text
+# sizes (originally tuned against base_size = 9) so they scale up by the
+# same factor as the axis/title text above, instead of staying fixed while
+# everything else grows.
+focused_text_scale <- focused_title_pt / 9
+focused_plot_title_pt <- focused_title_pt - 1 / focused_scale_down
+focused_speedup_size <- 3.2 * focused_text_scale - 1 / (ggplot2::.pt * focused_scale_down)
+focused_math_label_size <- focused_speedup_size - 3 / (ggplot2::.pt * focused_scale_down)
+
+focused_panel <- function(data, title, y_limits = NULL, show_y = TRUE) {
+  p <- ggplot(
+    data,
+    aes(
+      K,
+      milliseconds,
+      colour = method,
+      linetype = method,
+      linewidth = method,
+      group = method
+    )
+  ) +
+    geom_line() +
+    geom_point(size = 1.55, stroke = 0) +
+    scale_x_continuous(
+      trans = "log2",
+      breaks = keep_k,
+      labels = as.character(keep_k),
+      expand = expansion(mult = c(0.05, 0.10))
+    ) +
+    scale_y_log10(
+      breaks = 10^(-6:6),
+      labels = focused_y_labels,
+      minor_breaks = NULL
+    ) +
+    scale_colour_manual(values = focused_colors, name = NULL) +
+    scale_linetype_manual(values = focused_linetypes, name = NULL) +
+    scale_linewidth_manual(values = focused_lw, name = NULL) +
+    labs(x = NULL, y = NULL, title = title) +
+    paper_theme(base_size = focused_title_pt) +
+    theme(
+      legend.position = "none",
+      panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.title = element_text(hjust = 0.5, size = focused_plot_title_pt, face = "bold"),
+      axis.title = element_text(size = focused_title_pt),
+      axis.text.y = if (show_y) element_text(color = "black") else element_blank(),
+      axis.ticks.y = if (show_y) element_line(linewidth = 0.3) else element_blank(),
+      plot.margin = margin(2, 4, 2, 4, "pt")
+    )
+
+  arrow_rows <- focused_arrow_rows(data, y_limits)
+  if (nrow(arrow_rows) > 0L) {
+    p <- p +
+      geom_segment(
+        data = arrow_rows,
+        aes(x = K, xend = K, y = y_start, yend = y_end),
+        inherit.aes = FALSE,
+        colour = "black",
+        linewidth = 0.3,
+        arrow = grid::arrow(type = "open", length = grid::unit(0.05, "inches"))
+      ) +
+      geom_text(
+        data = arrow_rows,
+        aes(x = x_label, y = y_label, label = label, hjust = hjust, vjust = vjust),
+        inherit.aes = FALSE,
+        size = focused_speedup_size,
+        family = fnt,
+        colour = "black"
+      )
+  }
+
+  if (identical(title, "Matrix exponential")) {
+    exp_labels <- bind_rows(
+      data %>%
+        filter(K == 16, method == "H-SSBP") %>%
+        slice(1) %>%
+        transmute(K = K * 1.08, milliseconds = milliseconds * 2.6, method, label = "italic(e)^{italic(t)*italic(B)}"),
+      data %>%
+        filter(K == 16, method == "Known Schur") %>%
+        slice(1) %>%
+        transmute(K = K * 1.08, milliseconds = milliseconds * 0.48, method, label = "italic(e)^{italic(t)*italic(T)}"),
+      data %>%
+        filter(K == 16, method == "Dense (cached)") %>%
+        slice(1) %>%
+        transmute(K = K * 1.08, milliseconds = milliseconds * 2.8, method, label = "italic(e)^{italic(t)*italic(S)}")
+    )
+
+    p <- p +
+      geom_text(
+        data = exp_labels,
+        aes(K, milliseconds, label = label, colour = method),
+        inherit.aes = FALSE,
+        parse = TRUE,
+        show.legend = FALSE,
+        size = focused_math_label_size
+      )
+  }
+
+  if (identical(title, "Matrix exp. adjoint")) {
+    adjoint_labels <- bind_rows(
+      data %>%
+        filter(K == 16, method == "H-SSBP") %>%
+        slice(1) %>%
+        transmute(
+          K = K * 1.68,
+          milliseconds = milliseconds * 0.48,
+          method,
+          label = "italic(F)[italic(B)]^\"*\"~italic(\"(\")*italic(R)^{italic(T)}~italic(X)~italic(R)^{-italic(T)}*italic(\")\")"
+        ),
+      data %>%
+        filter(K == 16, method == "Known Schur") %>%
+        slice(1) %>%
+        transmute(
+          K = K * 1.15,
+          milliseconds = milliseconds * 0.18,
+          method,
+          label = "italic(F)[italic(T)]^\"*\"~italic(\"(\")*italic(R)^{italic(T)}~italic(X)~italic(R)^{-italic(T)}*italic(\")\")"
+        ),
+      data %>%
+        filter(K == 16, method == "Dense (cached)") %>%
+        slice(1) %>%
+        transmute(
+          K = K * 1.02,
+          milliseconds = milliseconds * 4.2,
+          method,
+          label = "italic(F)[italic(S)]^\"*\"~italic(\"(\")*italic(X)*italic(\")\")"
+        )
+    )
+
+    p <- p +
+      geom_text(
+        data = adjoint_labels,
+        aes(K, milliseconds, label = label, colour = method),
+        inherit.aes = FALSE,
+        parse = TRUE,
+        show.legend = FALSE,
+        family = math_annotation_family,
+        size = focused_math_label_size
+      )
+  }
+
+  if (!is.null(y_limits)) {
+    p <- p + coord_cartesian(ylim = y_limits)
+  }
+  p
+}
+
+second_row_limits <- exp_adjoint_cached %>%
+  filter(benchmark %in% c("Full edge message", "Full edge message gradient")) %>%
+  focused_panel_limits()
+
+focused_leg_panel <- function(methods = focused_methods, size_up = 1.25) {
+  x0 <- 0.06 * size_up
+  seg <- 0.16 * size_up
+  gap <- 0.05 * size_up
+  entry_gap <- 0.24
+  n <- length(methods)
+  block_width <- 1.7 * size_up
+  pad_x <- 0.3
+  pad_y <- 0.75
+  legend_text_size <- 3.5 * size_up * focused_text_scale - 3 / (ggplot2::.pt * focused_scale_down)
+
+  leg_df <- tibble(
+    method = factor(methods, levels = methods),
+    label = methods,
+    y = seq(entry_gap * (n - 1) / 2, by = -entry_gap, length.out = n)
+  ) %>%
+    mutate(x_lab = x0 + seg + gap)
+
+  ggplot() +
+    geom_segment(
+      data = leg_df,
+      aes(
+        x = x0,
+        xend = x0 + seg,
+        y = y,
+        yend = y,
+        colour = method,
+        linetype = method,
+        linewidth = method
+      ),
+      show.legend = FALSE,
+      inherit.aes = FALSE
+    ) +
+    geom_point(
+      data = leg_df,
+      aes(x = x0 + seg / 2, y = y, colour = method),
+      size = 1.55 * size_up,
+      stroke = 0,
+      show.legend = FALSE,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = leg_df,
+      aes(x = x_lab, y = y, label = label),
+      hjust = 0,
+      size = legend_text_size,
+      family = fnt,
+      colour = "grey20",
+      inherit.aes = FALSE
+    ) +
+    scale_colour_manual(values = focused_colors[methods]) +
+    scale_linetype_manual(values = focused_linetypes[methods]) +
+    scale_linewidth_manual(values = focused_lw[methods] * size_up) +
+    scale_x_continuous(limits = c(-pad_x, block_width + pad_x)) +
+    scale_y_continuous(limits = c(-entry_gap * (n - 1) / 2 - pad_y, entry_gap * (n - 1) / 2 + pad_y)) +
+    theme_void() +
+    theme(legend.position = "none")
+}
+
+shared_time_label_panel <- function(label = "Time (ms)") {
+  ggplot() +
+    annotate(
+      "text", x = 0, y = 0, label = label,
+      angle = 90, hjust = 0.5, vjust = 0.5,
+      size = 3.2 * focused_text_scale, family = fnt, colour = "black"
+    ) +
+    scale_x_continuous(limits = c(-1, 1)) +
+    scale_y_continuous(limits = c(-1, 1)) +
+    theme_void()
+}
+
+panel_data <- split(exp_adjoint_cached, exp_adjoint_cached$benchmark)
+exp_adjoint_cached_fig <- wrap_plots(
+  shared_time_label_panel(),
+  focused_panel(panel_data[["Matrix exponential"]], "Matrix exponential", first_three_limits, TRUE),
+  focused_panel(panel_data[["Matrix exp. adjoint"]], "Matrix exp. adjoint", first_three_limits, FALSE),
+  focused_panel(panel_data[["Lyapunov equation"]], "Lyapunov equation", first_three_limits, FALSE),
+  focused_panel(panel_data[["Full edge message"]], "Full edge message", second_row_limits, TRUE),
+  focused_panel(panel_data[["Full edge message gradient"]], "Full edge message gradient", second_row_limits, FALSE),
+  focused_leg_panel(),
+  design = "ABCD\nAEFG",
+  widths = c(0.06, 1, 1, 1)
+)
+
+exp_adjoint_cached_fig
+```
+
+```{r exp-adjoint-cached-save}
+save_benchmark_pdf(
+  exp_adjoint_cached_fig,
+  "ou_exp_adjoint_cached_benchmarks",
+  width = 10,
+  height = 5.8
+)
+```
+
+```{r dt-stress-figure-removed, eval=FALSE}
+dt_stress <- read_benchmark_csv(branch_results_path, "smbp_exp_dt_stress_results.csv")
+
+if (!"seed" %in% names(dt_stress)) {
+  dt_stress <- dt_stress %>%
+    mutate(seed = 1L)
+}
+
+dt_stress_long <- dt_stress %>%
+  transmute(
+    seed,
+    dt,
+    `Dense exp` = dense_relerr,
+    SMBP = smbp_relerr
+  ) %>%
+  pivot_longer(
+    cols = c(`Dense exp`, SMBP),
+    names_to = "method",
+    values_to = "relative_error"
+  ) %>%
+  filter(is.finite(relative_error), relative_error > 0)
+
+dt_stress_summary <- dt_stress_long %>%
+  group_by(dt, method) %>%
+  summarize(
+    median_error = median(relative_error),
+    q25 = quantile(relative_error, 0.25),
+    q75 = quantile(relative_error, 0.75),
+    .groups = "drop"
+  )
+
+dt_stress_arrows <- bind_rows(lapply(c(1.0e-2, 1.0), function(dt_value) {
+  arrow_rows <- dt_stress_summary %>%
+    filter(dplyr::near(dt, dt_value))
+  dense_row <- arrow_rows %>%
+    filter(method == "Dense exp")
+  smbp_row <- arrow_rows %>%
+    filter(method == "SMBP")
+  if (nrow(dense_row) == 0L || nrow(smbp_row) == 0L) {
+    return(tibble())
+  }
+
+  dense_error <- dense_row$median_error[[1L]]
+  smbp_error <- smbp_row$median_error[[1L]]
+  label_side <- if_else(dt_value < 1, "right", "left")
+  arrow_gap <- 1.28
+  tibble(
+    dt = dt_value,
+    y_start = dense_error / arrow_gap,
+    y_end = smbp_error * arrow_gap,
+    x_label = if_else(label_side == "right", dt_value * 1.45, dt_value / 1.45),
+    y_label = sqrt(dense_error * smbp_error),
+    hjust = if_else(label_side == "right", 0, 1),
+    label = paste0(signif(dense_error / smbp_error, 2), "x")
+  )
+}))
+
+dt_stress_colors <- c(
+  "Dense exp" = kernel_colors[["Dense"]],
+  "SMBP" = kernel_colors[["SSBP (R invertible, LDU)"]]
+)
+
+dt_stress_fig <- ggplot(
+  dt_stress_summary,
+  aes(dt, median_error, colour = method, linetype = method)
+) +
+  geom_ribbon(
+    aes(ymin = q25, ymax = q75, fill = method),
+    alpha = 0.12,
+    linewidth = 0,
+    show.legend = FALSE
+  ) +
+  geom_line(linewidth = 0.65) +
+  geom_point(size = 1.8) +
+  geom_segment(
+    data = dt_stress_arrows,
+    aes(x = dt, xend = dt, y = y_start, yend = y_end),
+    inherit.aes = FALSE,
+    colour = "black",
+    linewidth = 0.3,
+    arrow = arrow(type = "open", length = grid::unit(0.05, "inches"))
+  ) +
+  geom_text(
+    data = dt_stress_arrows,
+    aes(x = x_label, y = y_label, label = label, hjust = hjust),
+    inherit.aes = FALSE,
+    size = 3.2,
+    family = fnt,
+    colour = "black"
+  ) +
+  scale_x_log10(
+    breaks = 10^(-4:3),
+    labels = function(x) scales::math_format(10^.x)(log10(x))
+  ) +
+  scale_y_log10(
+    breaks = 10^(-16:-10),
+    labels = function(x) scales::math_format(10^.x)(log10(x))
+  ) +
+  scale_colour_manual(values = dt_stress_colors, name = NULL) +
+  scale_fill_manual(values = dt_stress_colors, name = NULL) +
+  scale_linetype_manual(values = c("Dense exp" = "32", "SMBP" = "solid"), name = NULL) +
+  labs(
+    x = "Transition scale (t)",
+    y = "Relative error",
+    title = "Fixed-K transition-scale stress test",
+    subtitle = paste0(
+      "K = ", unique(dt_stress$K),
+      "; median over ", n_distinct(dt_stress$seed),
+      " generated drifts"
+    )
+  ) +
+  paper_theme(base_size = 9) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.subtitle = element_text(size = 8)
+  )
+
+dt_stress_fig
+```
+
+```{r dt-stress-save, eval=FALSE}
+save_benchmark_pdf(dt_stress_fig, "ou_dt_stress_benchmarks", width = 4.5, height = 3.2)
+```
+
+```{r stability-figure, fig.width=9.2, fig.height=6.4}
+boundary_stability <- read_benchmark_csv(branch_results_path, "smbp_boundary_stability_results.csv")
+slow_lyapunov <- read_benchmark_csv(branch_results_path, "smbp_slow_lyapunov_results.csv")
+branch_covariance <- read_benchmark_csv(branch_results_path, "smbp_branch_covariance_stability_results.csv")
+basis_conditioning <- read_benchmark_csv(branch_results_path, "smbp_basis_conditioning_results.csv")
+lyapunov_param_stability <- read_benchmark_csv(branch_results_path, "lyapunov_param_stability_results.csv")
+
+stability_exp_col <- kernel_colors[["SSBP (R invertible, LDU)"]]
+stability_lyapunov_col <- kernel_colors[["Dense"]]
+stability_branch_col <- kernel_colors[["Known Schur"]]
+
+stability_cols <- c(
+  "Exponential" = stability_exp_col,
+  "Exp. adjoint" = stability_exp_col,
+  "Lyapunov" = stability_lyapunov_col,
+  "Lyap. adjoint" = stability_lyapunov_col,
+  "Covariance error" = stability_branch_col,
+  "Covariance adjoint" = stability_branch_col,
+  "Relative covariance error" = stability_branch_col,
+  "Absolute covariance error" = stability_branch_col,
+  "Absolute branch-gradient error" = stability_branch_col,
+  "Lyapunov residual" = stability_lyapunov_col,
+  "Min. eigenvalue:\nbranch covariance" = "black",
+  "Min. eigenvalue:\nstationary covariance" = "black",
+  "Branch covariance" = stability_branch_col,
+  "Branch gradient" = stability_branch_col
+)
+
+stability_linetypes <- c(
+  "Exponential" = "solid",
+  "Exp. adjoint" = "42",
+  "Lyapunov" = "solid",
+  "Lyap. adjoint" = "42",
+  "Covariance error" = "solid",
+  "Covariance adjoint" = "42",
+  "Relative covariance error" = "solid",
+  "Absolute covariance error" = "solid",
+  "Absolute branch-gradient error" = "42",
+  "Lyapunov residual" = "solid",
+  "Min. eigenvalue:\nbranch covariance" = "solid",
+  "Min. eigenvalue:\nstationary covariance" = "solid",
+  "Branch covariance" = "solid",
+  "Branch gradient" = "42"
+)
+
+log10_sparse_labels <- function(x) {
+  pow <- log10(x)
+  ifelse(
+    abs(pow - round(pow)) < 1e-8 & round(pow) %% 2 == 0,
+    scales::math_format(10^.x)(pow),
+    ""
+  )
+}
+
+log10_axis_labels <- function(x) {
+  scales::math_format(10^.x)(log10(x))
+}
+
+precision_reference_layers <- function(include_sqrt = FALSE) {
+  layers <- list(
+    geom_hline(
+      yintercept = .Machine$double.eps,
+      colour = "black",
+      linetype = "solid",
+      linewidth = 0.2
+    )
+  )
+  if (include_sqrt) {
+    layers <- c(
+      layers,
+      list(
+        geom_hline(
+          yintercept = sqrt(.Machine$double.eps),
+          colour = "grey78",
+          linetype = "13",
+          linewidth = 0.32
+        )
+      )
+    )
+  }
+  layers
+}
+
+stability_panel_theme <- paper_theme(base_size = 8) +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = grid::unit(0.24, "inches"),
+    legend.text = element_text(size = 6.2),
+    panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5, size = 9, face = "bold"),
+    plot.margin = margin(2, 4, 2, 4, "pt")
+  )
+
+boundary_summary <- boundary_stability %>%
+  { if (!"seed" %in% names(.)) mutate(., seed = 1L) else . } %>%
+  transmute(
+    seed,
+    side,
+    boundary_distance,
+    Exponential = exp_relerr,
+    `Exp. adjoint` = exp_adjoint_relerr,
+    Lyapunov = lyapunov_relerr,
+    `Lyap. adjoint` = lyapunov_adjoint_relerr,
+    `Branch covariance` = branch_covariance_relerr,
+    `Branch gradient` = branch_gradient_relerr
+  ) %>%
+  pivot_longer(
+    cols = c(Exponential, `Exp. adjoint`, Lyapunov, `Lyap. adjoint`,
+             `Branch covariance`, `Branch gradient`),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(is.finite(value), value > 0) %>%
+  group_by(boundary_distance, metric) %>%
+  summarize(
+    median_error = median(value),
+    q25 = quantile(value, 0.25),
+    q75 = quantile(value, 0.75),
+    .groups = "drop"
+  )
+
+boundary_panel <- ggplot(
+  boundary_summary,
+  aes(boundary_distance, median_error, colour = metric, linetype = metric)
+) +
+  # geom_ribbon(
+  #   aes(ymin = q25, ymax = q75, fill = metric),
+  #   alpha = 0.12,
+  #   linewidth = 0,
+  #   show.legend = FALSE
+  # ) +
+  geom_line(linewidth = 0.55) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(
+    breaks = 10^(-17:-13),
+    limits = c(1.0e-17, 1.0e-13),
+    labels = log10_axis_labels
+  ) +
+  scale_colour_manual(values = stability_cols, name = NULL) +
+  scale_fill_manual(values = stability_cols, name = NULL) +
+  scale_linetype_manual(values = stability_linetypes, name = NULL) +
+  labs(
+    x = "Distance to boundary",
+    y = "Relative error",
+    title = "Repeated-root boundary"
+  ) +
+  precision_reference_layers(include_sqrt = FALSE) +
+  stability_panel_theme
+
+slow_panel_error_data <- slow_lyapunov %>%
+  transmute(
+    epsilon,
+    `Covariance error` = sigma_relerr,
+    `Covariance adjoint` = lyapunov_adjoint_relerr,
+    `Lyapunov residual` = residual_relerr
+  ) %>%
+  pivot_longer(
+    cols = -epsilon,
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(is.finite(value), value > 0)
+
+slow_eigen_axis_scale <- sqrt(.Machine$double.eps) /
+  max(slow_lyapunov$min_eigenvalue, na.rm = TRUE)
+
+slow_panel_eigen_data <- slow_lyapunov %>%
+  transmute(
+    epsilon,
+    metric = "Min. eigenvalue:\nstationary covariance",
+    value = pmax(min_eigenvalue, .Machine$double.xmin) * slow_eigen_axis_scale
+  ) %>%
+  filter(is.finite(value), value > 0)
+
+slow_panel <- ggplot(
+  slow_panel_error_data,
+  aes(epsilon, value, colour = metric, linetype = metric)
+) +
+  geom_line(linewidth = 0.55) +
+  geom_line(
+    data = slow_panel_eigen_data,
+    linewidth = 0.55
+  ) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(
+    labels = log10_axis_labels,
+    sec.axis = sec_axis(
+      ~ . / slow_eigen_axis_scale,
+      name = "Min. eigenvalue of stationary covariance",
+      labels = log10_axis_labels
+    )
+  ) +
+  scale_colour_manual(values = stability_cols, name = NULL) +
+  scale_linetype_manual(values = stability_linetypes, name = NULL) +
+  labs(
+    x = "Mean-reversion scale",
+    y = "Relative error",
+    title = "Slow mean reversion"
+  ) +
+  precision_reference_layers(include_sqrt = FALSE) +
+  stability_panel_theme
+
+branch_panel_data <- branch_covariance %>%
+  transmute(
+    dt,
+    `Relative covariance error` = q_relerr,
+    `Absolute covariance error` = q_abs_fro_error,
+    `Absolute branch-gradient error` = branch_gradient_abs_fro_error,
+    `Min. eigenvalue:\nbranch covariance` = pmax(min_eigenvalue, .Machine$double.xmin)
+  ) %>%
+  pivot_longer(
+    cols = -dt,
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(is.finite(value), value > 0)
+
+branch_panel <- ggplot(
+  branch_panel_data,
+  aes(dt, value, colour = metric, linetype = metric)
+) +
+  geom_line(linewidth = 0.55) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(labels = log10_axis_labels) +
+  scale_colour_manual(
+    values = c(
+      "Relative covariance error" = stability_cols[["Relative covariance error"]],
+      "Absolute covariance error" = stability_cols[["Absolute covariance error"]],
+      "Absolute branch-gradient error" = stability_cols[["Absolute branch-gradient error"]],
+      "Min. eigenvalue:\nbranch covariance" =
+        stability_cols[["Min. eigenvalue:\nbranch covariance"]]
+    ),
+    name = NULL
+  ) +
+  scale_linetype_manual(values = stability_linetypes, name = NULL) +
+  labs(
+    x = "Branch length",
+    y = "Error or branch-covariance eigenvalue",
+    title = "Innovation covariance"
+  ) +
+  precision_reference_layers(include_sqrt = FALSE) +
+  stability_panel_theme
+
+conditioning_panel_data <- basis_conditioning %>%
+  transmute(
+    observed_condition,
+    Exponential = exp_relerr,
+    `Exp. adjoint` = exp_adjoint_relerr,
+    Lyapunov = lyapunov_relerr,
+    `Lyap. adjoint` = lyapunov_adjoint_relerr,
+    `Branch covariance` = branch_covariance_relerr,
+    `Branch gradient` = branch_gradient_relerr
+  ) %>%
+  pivot_longer(
+    cols = -observed_condition,
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(is.finite(value), value > 0)
+
+conditioning_panel <- ggplot(
+  conditioning_panel_data,
+  aes(observed_condition, value, colour = metric, linetype = metric)
+) +
+  geom_line(linewidth = 0.55) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(labels = log10_axis_labels) +
+  scale_colour_manual(
+    values = c(
+      "Exponential" = stability_cols[["Exponential"]],
+      "Exp. adjoint" = stability_cols[["Exp. adjoint"]],
+      "Lyapunov" = stability_cols[["Lyapunov"]],
+      "Lyap. adjoint" = stability_cols[["Lyap. adjoint"]],
+      "Branch covariance" = stability_cols[["Branch covariance"]],
+      "Branch gradient" = stability_cols[["Branch covariance"]]
+    ),
+    name = NULL
+  ) +
+  scale_linetype_manual(values = stability_linetypes, name = NULL) +
+  labs(
+    x = "Condition number",
+    y = "Relative error",
+    title = "Change-of-basis conditioning"
+  ) +
+  precision_reference_layers(include_sqrt = TRUE) +
+  stability_panel_theme
+
+stability_fig <- (boundary_panel | conditioning_panel) / (branch_panel | slow_panel) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(face = "bold", size = 9, family = "serif"))
+
+stability_fig
+```
+
+```{r stability-save, eval=FALSE}
+save_benchmark_pdf(stability_fig, "ou_numerical_stability_benchmarks", width = 9.2, height = 6.4)
+```
+
+```{r lyapunov-param-stability-figure, fig.width=9.2, fig.height=6.4}
+lyapunov_param_metric_cols <- c(
+  "Matrix exponential" = stability_cols[["Exponential"]],
+  "Branch covariance" = stability_cols[["Branch covariance"]],
+  "Absolute branch covariance" = "#6F7B82",
+  "Lyapunov identity residual" = stability_cols[["Lyapunov residual"]]
+)
+
+lyapunov_param_metric_linetypes <- c(
+  "Matrix exponential" = "solid",
+  "Branch covariance" = "solid",
+  "Absolute branch covariance" = "42",
+  "Lyapunov identity residual" = "32"
+)
+
+lyapunov_param_plot_data <- lyapunov_param_stability %>%
+  transmute(
+    stress,
+    x_value,
+    `Matrix exponential` = exp_relerr,
+    `Branch covariance` = branch_covariance_relerr,
+    `Absolute branch covariance` = branch_covariance_abs_fro_error,
+    `Lyapunov identity residual` = lyapunov_residual_relerr
+  ) %>%
+  pivot_longer(
+    cols = -c(stress, x_value),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, levels = names(lyapunov_param_metric_cols))
+  ) %>%
+  filter(is.finite(value), value > 0)
+
+lyapunov_param_panel <- function(stress_value, title, x_label) {
+  panel_data <- lyapunov_param_plot_data %>%
+    filter(stress == stress_value)
+
+  ggplot(
+    panel_data,
+    aes(x_value, value, colour = metric, linetype = metric)
+  ) +
+    geom_line(linewidth = 0.55) +
+    scale_x_log10(labels = log10_axis_labels) +
+    scale_y_log10(
+      breaks = 10^(-18:0),
+      labels = log10_sparse_labels,
+      minor_breaks = NULL
+    ) +
+    scale_colour_manual(values = lyapunov_param_metric_cols, name = NULL) +
+    scale_linetype_manual(values = lyapunov_param_metric_linetypes, name = NULL) +
+    labs(
+      x = x_label,
+      y = "Error",
+      title = title
+    ) +
+    precision_reference_layers(include_sqrt = FALSE) +
+    stability_panel_theme
+}
+
+lyapunov_param_stability_fig <- (
+  lyapunov_param_panel(
+    "stationary-covariance-conditioning",
+    "Stationary covariance conditioning",
+    expression(kappa(Sigma))
+  ) |
+    lyapunov_param_panel(
+      "diffusion-conditioning",
+      "Diffusion conditioning",
+      expression(kappa(Q))
+    )
+) / (
+  lyapunov_param_panel(
+    "skew-strength",
+    "Skew-symmetric strength",
+    expression(gamma)
+  ) |
+    lyapunov_param_panel(
+      "slow-mean-reversion",
+      "Slow mean reversion",
+      expression(epsilon)
+    )
+) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    legend.position = "bottom",
+    plot.tag = element_text(face = "bold", size = 9, family = "serif")
+  )
+
+lyapunov_param_stability_fig
+```
+
+```{r lyapunov-param-stability-save, eval=FALSE}
+save_benchmark_pdf(
+  lyapunov_param_stability_fig,
+  "ou_lyapunov_param_stability_benchmarks",
+  width = 9.2,
+  height = 6.4
+)
+```
+
+```{r ssbp-vs-lyapunov-param-stability-figure, fig.width=9.2, fig.height=7.0}
+combo_relabel <- function(metric) {
+  dplyr::recode(
+    as.character(metric),
+    "Exponential" = "Matrix exponential",
+    "Lyapunov" = "Lyapunov solve/identity",
+    "Lyapunov identity residual" = "Lyapunov solve/identity",
+    .default = as.character(metric)
+  )
+}
+
+combo_boundary_data <- boundary_summary %>%
+  mutate(metric = combo_relabel(metric))
+
+combo_conditioning_data <- conditioning_panel_data %>%
+  mutate(metric = combo_relabel(metric))
+
+combo_lyapunov_param_data <- lyapunov_param_plot_data %>%
+  filter(metric != "Absolute branch covariance") %>%
+  mutate(metric = combo_relabel(metric))
+
+# Ordered so that a 2-column, row-major legend (see ssbp_boundary_combo_panel
+# below) pairs each forward quantity with its adjoint on the same row.
+combo_cols <- c(
+  "Matrix exponential" = lyapunov_param_metric_cols[["Matrix exponential"]],
+  "Exp. adjoint" = stability_cols[["Exp. adjoint"]],
+  "Lyapunov solve/identity" = stability_lyapunov_col,
+  "Lyap. adjoint" = stability_cols[["Lyap. adjoint"]],
+  "Branch covariance" = stability_cols[["Branch covariance"]],
+  "Branch gradient" = stability_cols[["Branch covariance"]]
+)
+
+combo_linetypes <- c(
+  "Matrix exponential" = "solid",
+  "Exp. adjoint" = "42",
+  "Lyapunov solve/identity" = "solid",
+  "Lyap. adjoint" = "42",
+  "Branch covariance" = "solid",
+  "Branch gradient" = "42"
+)
+
+# One shared y-axis range across both rows (not just within a row), per
+# request: the SSBP and Lyapunov-param panels must show the same range.
+combo_y_breaks <- 10^(-18:0)
+combo_y_limits <- c(1.0e-17, 1.0e-6)
+
+combo_hide_y_axis <- theme(
+  axis.title.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank()
+)
+
+# Scale text elements so they land at specific printed sizes once this
+# 9.2in-wide figure is placed at 0.98\textwidth in a 6.5in-textwidth, 12pt
+# document (printed pt = raw ggplot pt * combo_scale_down). Built from
+# paper_theme()/stability_panel_theme() rather than mutating them, since
+# those are shared by other figures in this file.
+combo_scale_down <- 0.98 * 6.5 / 9.2
+combo_font_scale <- (12 / combo_scale_down) / 9
+# Panel/row titles are bold but otherwise match the (non-bold) axis-title
+# size exactly, since both are scaled in raw ggplot units, their printed
+# sizes after the same width-based embed scaling are equal too.
+combo_title_pt <- 8 * combo_font_scale
+combo_panel_theme <- paper_theme(base_size = 8 * combo_font_scale) +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = grid::unit(0.24, "inches"),
+    legend.text = element_text(size = 6.2 * combo_font_scale),
+    panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5, size = combo_title_pt, face = "bold"),
+    plot.margin = margin(2, 4, 2, 4, "pt")
+  )
+
+ssbp_boundary_combo_panel <- ggplot(
+  combo_boundary_data,
+  aes(boundary_distance, median_error, colour = metric, linetype = metric)
+) +
+  geom_line(linewidth = 0.55) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(
+    breaks = combo_y_breaks,
+    limits = combo_y_limits,
+    labels = log10_sparse_labels,
+    minor_breaks = NULL
+  ) +
+  scale_colour_manual(values = combo_cols, limits = names(combo_cols), name = NULL) +
+  scale_linetype_manual(values = combo_linetypes, limits = names(combo_linetypes), name = NULL) +
+  guides(
+    colour = guide_legend(ncol = 2, byrow = TRUE),
+    linetype = guide_legend(ncol = 2, byrow = TRUE)
+  ) +
+  labs(x = "Distance to boundary", y = NULL, title = "Repeated-root boundary") +
+  precision_reference_layers(include_sqrt = FALSE) +
+  combo_panel_theme +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.02, 0.98),
+    legend.justification = c(0, 1),
+    legend.title = element_blank(),
+    legend.background = element_rect(fill = "white", colour = "black", linewidth = 0.3),
+    legend.margin = margin(3, 5, 3, 4, "pt"),
+    legend.spacing.x = grid::unit(2, "pt"),
+    legend.spacing.y = grid::unit(0, "pt"),
+    legend.key.size = grid::unit(11, "pt"),
+    legend.key.spacing.x = grid::unit(3, "pt"),
+    legend.key.spacing.y = grid::unit(1, "pt")
+  )
+
+ssbp_conditioning_combo_panel <- ggplot(
+  combo_conditioning_data,
+  aes(observed_condition, value, colour = metric, linetype = metric)
+) +
+  geom_line(linewidth = 0.55) +
+  scale_x_log10(labels = log10_axis_labels) +
+  scale_y_log10(
+    breaks = combo_y_breaks,
+    limits = combo_y_limits,
+    labels = log10_sparse_labels,
+    minor_breaks = NULL
+  ) +
+  scale_colour_manual(values = combo_cols, limits = names(combo_cols), name = NULL) +
+  scale_linetype_manual(values = combo_linetypes, limits = names(combo_linetypes), name = NULL) +
+  labs(
+    x = expression(paste("Condition number ", kappa, "(", bold(R), ")")),
+    y = NULL,
+    title = "Change-of-basis conditioning"
+  ) +
+  precision_reference_layers(include_sqrt = TRUE) +
+  annotate(
+    "segment",
+    x = 1.0e3, y = 4.0e-11, xend = 1.0e5, yend = 1.0e-12,
+    arrow = arrow(length = grid::unit(0.09, "inches"), type = "closed"),
+    linewidth = 0.35, colour = "black"
+  ) +
+  annotate(
+    "text",
+    x = 2.2, y = 1.0e-10,
+    label = expression(paste("Solved when ", bold(R)^{-1}, " = ", bold(R)^{T})),
+    hjust = 0, vjust = 0,
+    size = (0.8 * 8 * combo_font_scale) / 2.845,
+    family = fnt, colour = "black"
+  ) +
+  combo_panel_theme +
+  theme(legend.position = "none") +
+  combo_hide_y_axis
+
+lyapunov_param_combo_panel <- function(stress_value, title, x_label, hide_y_axis = FALSE) {
+  panel_data <- combo_lyapunov_param_data %>%
+    filter(stress == stress_value)
+
+  p <- ggplot(
+    panel_data,
+    aes(x_value, value, colour = metric, linetype = metric)
+  ) +
+    geom_line(linewidth = 0.55) +
+    scale_x_log10(labels = log10_axis_labels) +
+    scale_y_log10(
+      breaks = combo_y_breaks,
+      limits = combo_y_limits,
+      labels = log10_sparse_labels,
+      minor_breaks = NULL
+    ) +
+    scale_colour_manual(values = combo_cols, limits = names(combo_cols), name = NULL) +
+    scale_linetype_manual(values = combo_linetypes, limits = names(combo_linetypes), name = NULL) +
+    labs(x = x_label, y = NULL, title = title) +
+    precision_reference_layers(include_sqrt = FALSE) +
+    combo_panel_theme +
+    theme(legend.position = "none")
+
+  if (hide_y_axis) p <- p + combo_hide_y_axis
+  p
+}
+
+combo_rotated_label_panel <- function(lines, size_mm, bold = TRUE) {
+  # Each line of text is its own rotated annotate() call, placed side by
+  # side; a single annotate() call with an embedded "\n" renders its second
+  # line mirrored under angle = 90, so multi-line labels are built this way
+  # instead.
+  n <- length(lines)
+  gap <- 1.4
+  x_pos <- seq(-(n - 1) / 2, (n - 1) / 2, length.out = n) * gap
+  x_limit <- max(1, max(abs(x_pos)) + 0.7)
+
+  p <- ggplot() +
+    scale_x_continuous(limits = c(-x_limit, x_limit)) +
+    scale_y_continuous(limits = c(-1, 1)) +
+    theme_void()
+  for (i in seq_len(n)) {
+    p <- p + annotate(
+      "text", x = x_pos[i], y = 0, label = lines[i],
+      angle = 90,
+      fontface = if (bold) "bold" else "plain",
+      size = size_mm, family = fnt, colour = "black"
+    )
+  }
+  p
+}
+
+combo_row_label_panel <- function(lines) {
+  combo_rotated_label_panel(lines, size_mm = combo_title_pt / 2.845, bold = TRUE)
+}
+
+# Matches the (non-bold) size of the other axis titles, in mm (ggplot's
+# annotate("text", size=) unit) rather than the pt-based theme element size.
+combo_y_axis_label_panel <- function(label) {
+  combo_rotated_label_panel(label, size_mm = (8 * combo_font_scale) / 2.845, bold = FALSE)
+}
+
+ssbp_vs_lyapunov_param_fig <- wrap_plots(
+  combo_row_label_panel("H-SSBP"),
+  ssbp_boundary_combo_panel,
+  ssbp_conditioning_combo_panel,
+  combo_row_label_panel("Lyap.-based para."),
+  lyapunov_param_combo_panel(
+    "skew-strength",
+    "Skew-symmetric strength",
+    expression(paste("Rotational strength ", bold("||M||"))),
+    hide_y_axis = FALSE
+  ),
+  lyapunov_param_combo_panel(
+    "stationary-covariance-conditioning",
+    "Stationary covariance conditioning",
+    expression(paste("Conditioning number ", kappa, "(", bold(V), ")")),
+    hide_y_axis = TRUE
+  ),
+  combo_y_axis_label_panel("Relative error"),
+  design = "YABC\nYDEF",
+  widths = c(0.05, 0.12, 1, 1),
+  heights = c(1, 1)
+)
+
+ssbp_vs_lyapunov_param_fig
+```
+
+```{r ssbp-vs-lyapunov-param-stability-save}
+save_benchmark_pdf(
+  ssbp_vs_lyapunov_param_fig,
+  "ou_ssbp_vs_lyapunov_param_stability_summary",
+  width = 9.2,
+  height = 7.0
+)
+```
+
+```{r matched-param-stability-figure, eval=FALSE}
+matched_param_method_linetypes <- c(
+  "H-SSBP" = "solid",
+  "Lyapunov parametrization" = "dashed"
+)
+
+matched_param_metric_cols <- c(
+  "Drift reconstruction" = kernel_colors[["SSBP (R orthogonal)"]],
+  "Matrix exponential" = stability_cols[["Exponential"]],
+  "Branch covariance" = stability_cols[["Branch covariance"]],
+  "Lyapunov identity residual" = stability_cols[["Lyapunov residual"]]
+)
+
+matched_param_plot_data <- matched_param_stability %>%
+  transmute(
+    stress,
+    group,
+    x_value,
+    method,
+    `Drift reconstruction` = drift_relerr,
+    `Matrix exponential` = exp_relerr,
+    `Branch covariance` = branch_covariance_relerr,
+    `Lyapunov identity residual` = lyapunov_residual_relerr
+  ) %>%
+  pivot_longer(
+    cols = -c(stress, group, x_value, method),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(is.finite(value), value > 0) %>%
+  group_by(stress, x_value, method, metric) %>%
+  summarize(value = median(value), .groups = "drop") %>%
+  mutate(
+    method = recode(method, "SSBP" = "H-SSBP"),
+    method = factor(method, levels = names(matched_param_method_linetypes)),
+    metric = factor(metric, levels = names(matched_param_metric_cols))
+  )
+
+matched_param_panel <- function(stress_value, title, x_label, show_y = TRUE) {
+  panel_data <- matched_param_plot_data %>%
+    filter(stress == stress_value)
+
+  plot <- ggplot(
+    panel_data,
+    aes(x_value, value, colour = metric, linetype = method)
+  ) +
+    geom_line(linewidth = 0.52) +
+    scale_x_log10(labels = log10_axis_labels) +
+    scale_y_log10(
+      limits = c(1.0e-18, 1.0),
+      breaks = 10^seq(-18, 0, by = 2),
+      labels = log10_sparse_labels,
+      minor_breaks = NULL
+    ) +
+    scale_colour_manual(values = matched_param_metric_cols, name = NULL) +
+    scale_linetype_manual(values = matched_param_method_linetypes, name = NULL) +
+    labs(
+      x = x_label,
+      y = if (show_y) "Relative error" else NULL,
+      title = title
+    ) +
+    precision_reference_layers(include_sqrt = FALSE) +
+    stability_panel_theme
+
+  if (!show_y) {
+    plot <- plot +
+      theme(
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()
+      )
+  }
+  plot
+}
+
+matched_param_stability_fig <- (
+  matched_param_panel(
+    "repeated-root-boundary",
+    "Repeated-root boundary",
+    "Distance to boundary",
+    show_y = TRUE
+  ) |
+    matched_param_panel(
+      "basis-conditioning",
+      "Matched basis conditioning",
+      expression(kappa(R)),
+      show_y = FALSE
+    )
+) / (
+  matched_param_panel(
+    "branch-length",
+    "Matched branch length",
+    "Branch length",
+    show_y = TRUE
+  ) |
+    matched_param_panel(
+      "slow-mean-reversion",
+      "Matched slow mean reversion",
+      expression(epsilon),
+      show_y = FALSE
+    )
+) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    legend.position = "bottom",
+    plot.tag = element_text(face = "bold", size = 9, family = "serif")
+  )
+
+matched_param_stability_fig
+```
+
+```{r matched-param-stability-save, eval=FALSE}
+save_benchmark_pdf(
+  matched_param_stability_fig,
+  "ou_matched_param_stability_benchmarks",
+  width = 9.2,
+  height = 6.4
+)
+```
+
+```{r gradient-stress-table, eval=FALSE}
+tex_sci <- function(x) {
+  if (!is.finite(x)) {
+    return("--")
+  }
+  if (x == 0) {
+    return("$0$")
+  }
+  exponent <- floor(log10(abs(x)))
+  mantissa <- x / 10^exponent
+  paste0("$", sprintf("%.2g", mantissa), "\\times 10^{", exponent, "}$")
+}
+
+gradient_table <- gradient_stress %>%
+  mutate(
+    regime = recode(
+      regime,
+      "well-conditioned" = "Well-conditioned",
+      "near-boundary" = "Near boundary",
+      "slow-mean-reversion" = "Slow mean reversion",
+      "ill-conditioned-basis" = "Ill-conditioned basis",
+      "small-branch-length" = "Small branch length"
+    ),
+    chol = if_else(branch_cholesky_success, "yes", "no")
+  )
+
+gradient_table_lines <- c(
+  "\\begin{tabular}{lcccc}",
+  "\\toprule",
+  "Regime & Exp. adjoint & Lyap. adjoint & Branch gradient & Cholesky \\\\",
+  "\\midrule",
+  vapply(seq_len(nrow(gradient_table)), function(i) {
+    paste(
+      gradient_table$regime[[i]],
+      tex_sci(gradient_table$exp_adjoint_relerr[[i]]),
+      tex_sci(gradient_table$lyapunov_adjoint_relerr[[i]]),
+      tex_sci(gradient_table$branch_gradient_relerr[[i]]),
+      gradient_table$chol[[i]],
+      sep = " & "
+    ) |>
+      paste0(" \\\\")
+  }, character(1)),
+  "\\bottomrule",
+  "\\end{tabular}"
+)
+
+save_benchmark_text(gradient_table_lines, "smbp_gradient_stress_table.tex")
+```
+
+```{r gradient-stress-figure, eval=FALSE}
+gradient_regime_levels <- c(
+  "well-conditioned",
+  "near-boundary",
+  "slow-mean-reversion",
+  "ill-conditioned-basis",
+  "small-branch-length"
+)
+
+gradient_regime_labels <- c(
+  "Well-\nconditioned",
+  "Near\nboundary",
+  "Slow mean\nreversion",
+  "Ill-conditioned\nbasis",
+  "Small branch\nlength"
+)
+
+gradient_metric_cols <- c(
+  "Exp. adjoint" = stability_cols[["Exp. adjoint"]],
+  "Lyap. adjoint" = stability_cols[["Lyap. adjoint"]],
+  "Branch gradient" = stability_cols[["Branch gradient"]]
+)
+
+gradient_plot_data <- gradient_stress %>%
+  mutate(
+    regime = factor(
+      regime,
+      levels = gradient_regime_levels,
+      labels = gradient_regime_labels
+    )
+  ) %>%
+  transmute(
+    regime,
+    `Exp. adjoint` = exp_adjoint_relerr,
+    `Lyap. adjoint` = lyapunov_adjoint_relerr,
+    `Branch gradient` = branch_gradient_relerr
+  ) %>%
+  pivot_longer(
+    cols = -regime,
+    names_to = "metric",
+    values_to = "relative_error"
+  ) %>%
+  mutate(
+    metric = factor(
+      metric,
+      levels = c("Exp. adjoint", "Lyap. adjoint", "Branch gradient")
+    )
+  ) %>%
+  filter(is.finite(relative_error), relative_error > 0)
+
+gradient_stress_fig <- ggplot(
+  gradient_plot_data,
+  aes(regime, relative_error, colour = metric, shape = metric)
+) +
+  geom_point(
+    position = position_dodge(width = 0.52),
+    size = 2.15,
+    stroke = 0.35
+  ) +
+  scale_y_log10(
+    breaks = 10^seq(-17, -2, by = 3),
+    limits = c(1.0e-17, 1.0e-2),
+    labels = log10_axis_labels
+  ) +
+  scale_colour_manual(values = gradient_metric_cols, name = NULL) +
+  scale_shape_manual(
+    values = c("Exp. adjoint" = 16, "Lyap. adjoint" = 17, "Branch gradient" = 15),
+    name = NULL
+  ) +
+  labs(
+    x = NULL,
+    y = "Relative error",
+    title = "Gradient stress"
+  ) +
+  paper_theme(base_size = 8.5) +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = grid::unit(0.38, "inches"),
+    legend.text = element_text(size = 7.5),
+    panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 7.5),
+    plot.title = element_text(hjust = 0.5, size = 9.5, face = "bold")
+  )
+
+gradient_stress_fig
+```
+
+```{r gradient-stress-save, eval=FALSE}
+save_benchmark_pdf(gradient_stress_fig, "ou_gradient_stress_benchmarks", width = 5.8, height = 3.2)
+```
+
+# Time-Series and Tree Panels
+
+The panel code below follows the benchmark plotting framework used in the
+CTMC benchmark figure. The time-series panel reads the available CSV files and
+fills missing cells by cubic extrapolation from the nearest observed anchor.
+The tree panel reads package benchmark CSV files, estimates missing package cells
+the same way, and estimates the SMB tree curve from the branch-with-Lyapunov
+kernel benchmark multiplied by the number of tree edges.
+
+```{r panel-data, eval=FALSE}
+panel_k <- c(4L, 8L, 16L, 32L, 64L)
+panel_n <- c(10L, 100L, 1000L)
+
+read_existing_csvs <- function(paths) {
+  paths <- paths[fs::file_exists(paths)]
+  if (length(paths) == 0L) {
+    return(tibble())
+  }
+  bind_rows(lapply(paths, readr::read_csv, show_col_types = FALSE))
+}
+
+time_series_grid_files <- fs::dir_ls(
+  time_series_results_path,
+  regexp = "timeseries_.*\\.csv$",
+  fail = FALSE
+)
+
+time_series_observed <- read_existing_csvs(time_series_grid_files) %>%
+  filter(
+    status == "ok",
+    operation %in% c("log_prob", "grad_log_prob"),
+    K %in% panel_k,
+    N %in% panel_n
+  ) %>%
+  mutate(
+    operation = recode(
+      operation,
+      log_prob = "Likelihood",
+      grad_log_prob = "Gradient"
+    ),
+    method = case_when(
+      package == "rstan" ~ "Stan",
+      str_detect(str_to_lower(package), "beast|smb") ~ "SMB",
+      TRUE ~ as.character(package)
+    ),
+    median_s = median_ms / 1e3,
+    sd_s = pmax(max_ms - min_ms, 0) / (4 * 1e3),
+    is_extrap = FALSE
+  ) %>%
+  select(method, operation, N, K, median_s, sd_s, is_extrap) %>%
+  distinct(method, operation, N, K, .keep_all = TRUE)
+
+complete_cubic_time_series_grid <- function(
+  data,
+  all_N = panel_n,
+  all_K = panel_k,
+  k_power = 3,
+  n_power = 3
+) {
+  if (nrow(data) == 0L) {
+    return(data)
+  }
+
+  out <- list()
+  keys <- distinct(data, method, operation)
+  row_id <- 1L
+
+  for (i in seq_len(nrow(keys))) {
+    method_i <- as.character(keys$method[[i]])
+    operation_i <- as.character(keys$operation[[i]])
+    source_data <- data %>%
+      filter(method == method_i, operation == operation_i) %>%
+      mutate(N = as.integer(N), K = as.integer(K))
+    observed_N <- sort(unique(source_data$N))
+
+    completed_observed_N <- list()
+    for (n_value in observed_N) {
+      n_data <- source_data %>% filter(N == n_value)
+      completed_k <- lapply(all_K, function(k_value) {
+        exact <- n_data %>% filter(K == k_value)
+        if (nrow(exact) > 0L) {
+          return(exact[1, ])
+        }
+
+        lower <- n_data %>% filter(K < k_value) %>% arrange(K)
+        anchor <- if (nrow(lower) > 0L) {
+          tail(lower, 1)
+        } else {
+          n_data %>% arrange(K) %>% slice(1)
+        }
+        scale <- (k_value / anchor$K[[1]])^k_power
+        anchor %>%
+          mutate(
+            K = as.integer(k_value),
+            median_s = median_s * scale,
+            sd_s = sd_s * scale,
+            is_extrap = TRUE
+          )
+      }) %>%
+        bind_rows() %>%
+        arrange(K)
+
+      completed_observed_N[[as.character(n_value)]] <- completed_k
+    }
+
+    for (n_value in all_N) {
+      n_key <- as.character(n_value)
+      if (n_key %in% names(completed_observed_N)) {
+        out[[row_id]] <- completed_observed_N[[n_key]]
+        row_id <- row_id + 1L
+        next
+      }
+
+      lower_N <- observed_N[observed_N < n_value]
+      source_N <- if (length(lower_N) > 0L) {
+        max(lower_N)
+      } else {
+        observed_N[[1L]]
+      }
+      scale <- (n_value / source_N)^n_power
+      out[[row_id]] <- completed_observed_N[[as.character(source_N)]] %>%
+        mutate(
+          N = as.integer(n_value),
+          median_s = median_s * scale,
+          sd_s = sd_s * scale,
+          is_extrap = TRUE
+        )
+      row_id <- row_id + 1L
+    }
+  }
+
+  bind_rows(out) %>%
+    arrange(operation, N, method, K)
+}
+
+complete_cubic_panel_grid <- function(
+  data,
+  all_N = panel_n,
+  all_K = panel_k,
+  k_power = 3,
+  n_power = 3
+) {
+  if (nrow(data) == 0L) {
+    return(data)
+  }
+
+  out <- list()
+  row_id <- 1L
+  for (method_i in unique(as.character(data$method))) {
+    source_data <- data %>%
+      filter(method == method_i) %>%
+      mutate(N = as.integer(N), K = as.integer(K))
+    observed_N <- sort(unique(source_data$N))
+
+    completed_observed_N <- list()
+    for (n_value in observed_N) {
+      n_data <- source_data %>% filter(N == n_value)
+      completed_k <- lapply(all_K, function(k_value) {
+        exact <- n_data %>% filter(K == k_value)
+        if (nrow(exact) > 0L) {
+          return(exact[1, ])
+        }
+
+        lower <- n_data %>% filter(K < k_value) %>% arrange(K)
+        anchor <- if (nrow(lower) > 0L) {
+          tail(lower, 1)
+        } else {
+          n_data %>% arrange(K) %>% slice(1)
+        }
+        scale <- (k_value / anchor$K[[1]])^k_power
+        anchor %>%
+          mutate(
+            K = as.integer(k_value),
+            median_s = median_s * scale,
+            sd_s = sd_s * scale,
+            is_extrap = TRUE
+          )
+      }) %>%
+        bind_rows() %>%
+        arrange(K)
+
+      completed_observed_N[[as.character(n_value)]] <- completed_k
+    }
+
+    for (n_value in all_N) {
+      n_key <- as.character(n_value)
+      if (n_key %in% names(completed_observed_N)) {
+        out[[row_id]] <- completed_observed_N[[n_key]]
+        row_id <- row_id + 1L
+        next
+      }
+
+      lower_N <- observed_N[observed_N < n_value]
+      source_N <- if (length(lower_N) > 0L) {
+        max(lower_N)
+      } else {
+        observed_N[[1L]]
+      }
+      scale <- (n_value / source_N)^n_power
+      out[[row_id]] <- completed_observed_N[[as.character(source_N)]] %>%
+        mutate(
+          N = as.integer(n_value),
+          median_s = median_s * scale,
+          sd_s = sd_s * scale,
+          is_extrap = TRUE
+        )
+      row_id <- row_id + 1L
+    }
+  }
+
+  bind_rows(out) %>%
+    arrange(N, method, K)
+}
+
+tree_result_files <- fs::dir_ls(
+  tree_results_path,
+  regexp = "results_.*\\.csv$",
+  fail = FALSE
+)
+
+tree_raw <- bind_rows(lapply(tree_result_files, function(path) {
+  readr::read_csv(path, show_col_types = FALSE) %>%
+    mutate(source_file = fs::path_file(path))
+}))
+
+tree_package_observed <- tree_raw %>%
+  filter(
+    status == "ok",
+    K %in% panel_k,
+    N %in% panel_n
+  ) %>%
+  mutate(
+    method = case_when(
+      package %in% c("PCMBase", "PCMBaseCpp") & mode == "dense_PCMLik" ~ "PCMBase",
+      package == "PCMFit" & mode == "PCMFit_fit" ~ "PCMFit",
+      package == "mvMORPH" & str_detect(mode, "^mvOU_fixed") ~ "mvMORPH",
+      package == "mvSLOUCH" & mode == "ouchModel_fit_Any_Any" ~ "mvSLOUCH",
+      TRUE ~ NA_character_
+    ),
+    median_s = case_when(
+      is.finite(median_sec) & median_sec > 0 ~ median_sec,
+      is.finite(mean_sec) & mean_sec > 0 ~ mean_sec,
+      TRUE ~ NA_real_
+    ),
+    sd_s = pmax(max_sec - min_sec, 0) / 4,
+    is_extrap = FALSE,
+    package_priority = case_when(
+      package == "PCMBaseCpp" ~ 1L,
+      TRUE ~ 2L
+    ),
+    source_priority = case_when(
+      str_detect(source_file, "_grid_") & !str_detect(source_file, "_quick_") ~ 1L,
+      str_detect(source_file, "_quick_grid_") ~ 2L,
+      TRUE ~ 3L
+    )
+  ) %>%
+  filter(!is.na(method), is.finite(median_s), median_s > 0) %>%
+  arrange(method, N, K, package_priority, source_priority, median_s) %>%
+  group_by(method, N, K) %>%
+  slice(1L) %>%
+  ungroup() %>%
+  select(method, N, K, median_s, sd_s, is_extrap)
+
+branch_lyapunov_file <- fs::path(
+  branch_results_path, "branch_likelihood_with_lyapunov_results.csv"
+)
+tree_smbp_estimated <- if (fs::file_exists(branch_lyapunov_file)) {
+  readr::read_csv(branch_lyapunov_file, show_col_types = FALSE) %>%
+    filter(K %in% panel_k, is.finite(smbp_branch_lyap_rotation_ms)) %>%
+    select(K, smbp_branch_lyap_rotation_ms) %>%
+    distinct(K, .keep_all = TRUE) %>%
+    tidyr::crossing(N = panel_n) %>%
+    transmute(
+      method = "SMB",
+      N = as.integer(N),
+      K = as.integer(K),
+      median_s = (2 * N - 2) * smbp_branch_lyap_rotation_ms / 1e3,
+      sd_s = 0.10 * median_s,
+      is_extrap = TRUE
+    )
+} else {
+  tibble()
+}
+
+time_series_timings <- complete_cubic_time_series_grid(time_series_observed) %>%
+  mutate(
+    operation = factor(operation, levels = c("Likelihood", "Gradient")),
+    method = factor(method, levels = c("SMB", "Stan", "Dense Kalman", "Known Schur"))
+  )
+
+tree_timings <- bind_rows(
+  tree_smbp_estimated,
+  complete_cubic_panel_grid(tree_package_observed)
+) %>%
+  mutate(method = factor(method, levels = c("SMB", "PCMBase", "PCMFit", "mvMORPH", "mvSLOUCH")))
+```
+
+```{r panel-framework, eval=FALSE}
+fnt <- "CMU Serif"
+fsz <- 10
+fszT <- 12
+
+method_cols <- c(
+  "SMB" = "#2F67B1",
+  "Stan" = "#D4960A",
+  "Dense Kalman" = "#9B4356",
+  "Known Schur" = "#D67C2F",
+  "PCMBase" = "#D4960A",
+  "PCMFit" = "#6C5B9A",
+  "mvMORPH" = "#9B4356",
+  "mvSLOUCH" = "#D67C2F"
+)
+method_shps <- c(
+  "SMB" = 16L,
+  "Stan" = 16L,
+  "Dense Kalman" = 16L,
+  "Known Schur" = 16L,
+  "PCMBase" = 16L,
+  "PCMFit" = 16L,
+  "mvMORPH" = 16L,
+  "mvSLOUCH" = 16L
+)
+method_alpha <- c(
+  "SMB" = 1,
+  "Stan" = 1,
+  "Dense Kalman" = 1,
+  "Known Schur" = 1,
+  "PCMBase" = 1,
+  "PCMFit" = 1,
+  "mvMORPH" = 1,
+  "mvSLOUCH" = 1
+)
+method_lty <- c(
+  "SMB" = "solid",
+  "Stan" = "dashed",
+  "Dense Kalman" = "dashed",
+  "Known Schur" = "dashed",
+  "PCMBase" = "dashed",
+  "PCMFit" = "dashed",
+  "mvMORPH" = "dashed",
+  "mvSLOUCH" = "dashed"
+)
+method_ltyLegend <- c(
+  "SMB" = "solid",
+  "Stan" = "32",
+  "Dense Kalman" = "32",
+  "Known Schur" = "32",
+  "PCMBase" = "32",
+  "PCMFit" = "32",
+  "mvMORPH" = "32",
+  "mvSLOUCH" = "32"
+)
+method_lw <- c(
+  "SMB" = 1.0,
+  "Stan" = 0.5,
+  "Dense Kalman" = 0.5,
+  "Known Schur" = 0.5,
+  "PCMBase" = 0.5,
+  "PCMFit" = 0.5,
+  "mvMORPH" = 0.5,
+  "mvSLOUCH" = 0.5
+)
+
+bench_panel <- function(data, methods, y_limits) {
+  d <- data %>%
+    filter(method %in% methods) %>%
+    mutate(method = factor(method, levels = methods))
+  d_real <- filter(d, !is_extrap)
+  d_fake <- filter(d, is_extrap)
+
+  p <- ggplot(
+    d_real,
+    aes(
+      K,
+      median_s,
+      colour = method,
+      shape = method,
+      alpha = method,
+      linetype = method,
+      linewidth = method
+    )
+  ) +
+    geom_line(linewidth = 0.7) +
+    geom_point(
+      data = d_real,
+      aes(x = K, y = median_s),
+      inherit.aes = FALSE,
+      colour = "white",
+      alpha = 1,
+      size = 1.9,
+      stroke = 0
+    ) +
+    geom_point(size = 1.9) +
+    scale_x_continuous(
+      trans = "log2",
+      breaks = panel_k,
+      labels = as.character(panel_k),
+      expand = expansion(mult = c(0.05, 0.14))
+    ) +
+    scale_y_log10(
+      breaks = 10^(-6:6),
+      labels = function(x) {
+        pow <- log10(x)
+        ifelse(
+          pow %% 2 == 0,
+          scales::math_format(10^.x)(pow),
+          ""
+        )
+      },
+      minor_breaks = NULL
+    ) +
+    coord_cartesian(ylim = y_limits) +
+    scale_colour_manual(values = method_cols[methods], name = NULL) +
+    scale_shape_manual(values = method_shps[methods], name = NULL) +
+    scale_alpha_manual(values = method_alpha[methods], name = NULL) +
+    scale_linetype_manual(values = method_lty[methods], name = NULL) +
+    scale_linewidth_manual(values = method_lw[methods], name = NULL) +
+    labs(x = NULL, y = NULL) +
+    theme_classic(base_size = fszT, base_family = fnt) +
+    theme(
+      aspect.ratio = 1,
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+      panel.grid.major.y = element_line(color = "grey93", linetype = "33", linewidth = 0.4),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_blank(),
+      axis.ticks = element_line(linewidth = 0.3),
+      axis.text = element_text(size = fsz, family = fnt, color = "black"),
+      axis.title = element_text(size = fszT, family = fnt, color = "black"),
+      plot.margin = margin(-2, 4, -2, 1, "pt"),
+      legend.position = "none"
+    )
+
+  if (nrow(d_fake) > 0) {
+    extrap_methods <- unique(as.character(d_fake$method))
+    d_bridge <- bind_rows(lapply(extrap_methods, function(meth) {
+      last_real <- filter(d_real, method == meth) %>% arrange(K) %>% tail(1)
+      fake_meth <- filter(d_fake, method == meth) %>% arrange(K)
+      bind_rows(last_real, fake_meth)
+    }))
+    p <- p +
+      geom_line(
+        data = d_bridge,
+        aes(x = K, y = median_s, colour = method, linetype = method, linewidth = method),
+        alpha = 0.6,
+        inherit.aes = FALSE
+      ) +
+      geom_point(
+        data = d_fake,
+        aes(x = K, y = median_s),
+        inherit.aes = FALSE,
+        colour = "white",
+        alpha = 0.6,
+        size = 1.9,
+        stroke = 0
+      ) +
+      geom_point(
+        data = d_fake,
+        aes(x = K, y = median_s, colour = method, shape = method),
+        alpha = 0.6,
+        size = 1.9,
+        inherit.aes = FALSE
+      )
+  }
+
+  p
+}
+
+y_lab <- wrap_elements(
+  grid::textGrob(
+    "Time (s)",
+    rot = 90,
+    gp = grid::gpar(fontsize = fszT, fontfamily = fnt)
+  )
+)
+
+rl <- function(lab) {
+  ggplot() +
+    annotate(
+      "text",
+      x = 0.5,
+      y = 0.5,
+      label = lab,
+      angle = 90,
+      size = 4,
+      fontface = "bold",
+      family = fnt,
+      hjust = 0.5
+    ) +
+    theme_void()
+}
+
+x_lab <- wrap_elements(
+  full = grid::textGrob(
+    "State dimension (K)",
+    y = grid::unit(1, "npc"),
+    just = c("centre", "top"),
+    gp = grid::gpar(fontsize = fszT, fontfamily = fnt)
+  )
+)
+
+top_title_theme <- theme(
+  plot.title = element_text(
+    hjust = 0.5,
+    size = fszT,
+    family = fnt,
+    face = "bold",
+    margin = margin(0, 0, 1, 0, "pt")
+  )
+)
+
+make_leg_panel <- function(methods, labels = methods) {
+  c1x <- 0.12
+  c2x <- 0.45
+  seg <- 0.035
+  gap <- 0.020
+  has_proposed <- "SMB" %in% methods
+  proposed_methods <- if (has_proposed) "SMB" else character()
+  benchmark_methods <- setdiff(methods, proposed_methods)
+  proposed_labels <- labels[match(proposed_methods, methods)]
+  benchmark_labels <- labels[match(benchmark_methods, methods)]
+
+  leg_df <- tibble(
+    method = factor(c(proposed_methods, benchmark_methods), levels = names(method_cols)),
+    label = c(proposed_labels, benchmark_labels),
+    x_seg0 = c(
+      rep(c1x, length(proposed_methods)),
+      rep(if (has_proposed) c2x else c1x, length(benchmark_methods))
+    ),
+    y = c(
+      seq(1.4, by = -0.8, length.out = length(proposed_methods)),
+      seq(1.8, by = -0.8, length.out = length(benchmark_methods))
+    )
+  ) %>%
+    mutate(
+      x_lab = x_seg0 + seg + gap
+    )
+
+  if (!has_proposed) {
+    leg_df <- leg_df %>% mutate(y = seq(1.8, by = -0.8, length.out = n()))
+  }
+
+  leg_titles <- if (has_proposed) {
+    tibble(
+      label = c("Proposed method", "Benchmarks"),
+      x = c(c1x, c2x),
+      y = c(2.8, 2.8)
+    )
+  } else {
+    tibble(
+      label = "Benchmarks",
+      x = c1x,
+      y = 2.8
+    )
+  }
+
+  ggplot() +
+    geom_text(
+      data = leg_titles,
+      aes(x = x, y = y, label = label),
+      hjust = 0,
+      size = 3.5,
+      family = fnt,
+      fontface = "bold",
+      colour = "grey10",
+      inherit.aes = FALSE
+    ) +
+    geom_segment(
+      data = leg_df,
+      aes(
+        x = x_seg0,
+        xend = x_seg0 + seg,
+        y = y,
+        yend = y,
+        colour = method,
+        alpha = method,
+        linetype = method
+      ),
+      linewidth = 0.8,
+      show.legend = FALSE,
+      inherit.aes = FALSE
+    ) +
+    geom_text(
+      data = leg_df,
+      aes(x = x_lab, y = y, label = label),
+      hjust = 0,
+      size = 3.5,
+      family = fnt,
+      colour = "grey20",
+      inherit.aes = FALSE
+    ) +
+    scale_colour_manual(values = method_cols[methods]) +
+    scale_alpha_manual(values = method_alpha[methods]) +
+    scale_linetype_manual(values = method_ltyLegend[methods]) +
+    scale_x_continuous(limits = c(0, 0.95)) +
+    scale_y_continuous(limits = c(-0.9, 3.3)) +
+    theme_void() +
+    theme(legend.position = "none")
+}
+
+make_panel_row <- function(data, row_label, methods, labels = methods, y_limits) {
+  panel_list <- lapply(panel_n, function(n_value) {
+    bench_panel(filter(data, N == n_value), methods, y_limits = y_limits) +
+      labs(title = paste0("N = ", scales::comma(n_value))) +
+      top_title_theme
+  })
+
+  wrap_plots(
+    y_lab,
+    rl(row_label),
+    panel_list[[1]],
+    panel_list[[2]],
+    panel_list[[3]],
+    plot_spacer(),
+    x_lab,
+    plot_spacer(),
+    make_leg_panel(methods, labels),
+    design = "
+ABCDE
+#FGGG
+#HIII
+",
+    widths = c(0.06, 0.05, 1, 1, 1),
+    heights = c(1, 0.05, 0.24)
+  )
+}
+
+make_two_row_panel <- function(data, row_labels, methods, labels = methods, y_limits) {
+  panel_list <- lapply(row_labels, function(row_label) {
+    lapply(panel_n, function(n_value) {
+      bench_panel(
+        filter(data, operation == row_label, N == n_value),
+        methods,
+        y_limits = y_limits
+      ) +
+        labs(title = paste0("N = ", scales::comma(n_value))) +
+        top_title_theme
+    })
+  })
+
+  wrap_plots(
+    y_lab,
+    rl(row_labels[[1L]]),
+    panel_list[[1L]][[1L]],
+    panel_list[[1L]][[2L]],
+    panel_list[[1L]][[3L]],
+    rl(row_labels[[2L]]),
+    panel_list[[2L]][[1L]],
+    panel_list[[2L]][[2L]],
+    panel_list[[2L]][[3L]],
+    plot_spacer(),
+    x_lab,
+    plot_spacer(),
+    make_leg_panel(methods, labels),
+    design = "
+ABCDE
+AFGHI
+#JKKK
+#LMMM
+",
+    widths = c(0.06, 0.05, 1, 1, 1),
+    heights = c(1, 1, 0.05, 0.24)
+  )
+}
+
+panel_y_limits <- function(data, lower = 2.5e-4, pad = 1.8) {
+  values <- data$median_s
+  values <- values[is.finite(values) & values > 0]
+  if (length(values) == 0L) {
+    return(c(lower, 1))
+  }
+  c(min(lower, min(values) / pad), max(values) * pad)
+}
+```
+
+# Time-Series Benchmarks
+
+```{r time-series-figure, eval=FALSE}
+time_series_methods <- c("SMB", "Stan", "Dense Kalman", "Known Schur")
+time_series_methods <- time_series_methods[
+  time_series_methods %in% as.character(unique(time_series_timings$method))
+]
+if (length(time_series_methods) == 0L) {
+  stop("No time-series benchmark rows were found.", call. = FALSE)
+}
+
+time_series_fig <- make_two_row_panel(
+  time_series_timings,
+  row_labels = c("Likelihood", "Gradient"),
+  methods = time_series_methods,
+  labels = time_series_methods,
+  y_limits = panel_y_limits(time_series_timings)
+)
+
+time_series_fig
+```
+
+```{r time-series-save, eval=FALSE}
+save_benchmark_pdf(time_series_fig, "ou_time_series_benchmarks", width = 10, height = 8)
+```
+
+# Tree Benchmarks
+
+```{r tree-figure, eval=FALSE}
+tree_methods <- c("SMB", "PCMBase", "PCMFit", "mvMORPH", "mvSLOUCH")
+tree_methods <- tree_methods[
+  tree_methods %in% as.character(unique(tree_timings$method))
+]
+if (length(tree_methods) == 0L) {
+  stop("No tree benchmark rows were found.", call. = FALSE)
+}
+
+tree_fig <- make_panel_row(
+  tree_timings,
+  row_label = "Trees",
+  methods = tree_methods,
+  labels = tree_methods,
+  y_limits = panel_y_limits(tree_timings)
+)
+
+tree_fig
+```
+
+```{r tree-save, eval=FALSE}
+save_benchmark_pdf(tree_fig, "ou_tree_benchmarks", width = 10, height = 4.25)
+```
+
+# Output
+
+Figures are written to:
+
+- `r figure_output_paths`

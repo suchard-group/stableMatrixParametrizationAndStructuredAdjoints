@@ -1,0 +1,31 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Rendered/regenerated figure output (regenerate with the scripts in figures/
+# and applications/*/scripts/; not checked in)
+figures/output/
+applications/*/output/
+
+# Historical BitMEX 30-minute exploratory work retained locally, outside the
+# active public reproducibility bundle.
+applications/bitmex/legacy_30min_work/
+
+# Historical Anolis 200,000-state exploratory/public-draft work retained
+# locally, outside the active manuscript reproducibility bundle.
+applications/anole/legacy_200k_work/
+
+# Historical working simulation folder retained outside the public code surface.
+simulationOld/
+
+# Recreated simulation inputs and BEAST outputs can be regenerated from
+# simulations/scripts/.
+simulations/runs/
+simulations/results/raw/
+simulations/figures/output/
+
+# Quarto render artifacts
+*.knit.md
+*.html
+*_files/
+/.quarto/

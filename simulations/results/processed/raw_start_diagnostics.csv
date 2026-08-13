@@ -1,0 +1,7 @@
+panel,fit_family,raw_starts,raw_exit0,raw_pass_rel_1e_minus_6,raw_pass_rate_rel_1e_minus_6
+"Jordan(4,1) coupling",generic dense-R H-SSBP,750,750,724,0.9653333333333334
+"Jordan(4,1) coupling",orthogonal H-SSBP,750,750,750,1
+Non-orthogonal shear,generic dense-R H-SSBP,750,750,712,0.9493333333333334
+Non-orthogonal shear,orthogonal H-SSBP,750,750,750,1
+Real/complex boundary,generic dense-R H-SSBP,875,875,875,1
+Real/complex boundary,orthogonal H-SSBP,875,875,875,1

@@ -1,0 +1,30 @@
+{
+  "best_start": "lambda0p1_random04",
+  "best_task": 204,
+  "centering": "within-window mean log price by instrument",
+  "data_availability_csv": "data/jan2022_J2_4h/data_availability.csv",
+  "duration_hours": 4.0,
+  "event": "jan2022",
+  "event_csv": "data/jan2022_J2_4h/events.csv",
+  "event_label": "24 January 2022 recovery",
+  "observation_error_variance": 1e-05,
+  "rho_ordering": "ascending cumulative increments, ordering the effective block real parts",
+  "rho_prior": {
+    "mu": 0.0,
+    "sigma": 1.0,
+    "type": "logNormalPrior"
+  },
+  "shrinkage_lambda": 0.1,
+  "stable_matrix_chart": "general dense-R / globally normalized invertible-basis H-SSBP",
+  "symbols": [
+    "XBTUSDT",
+    "ETHUSDT",
+    "LTCUSDT",
+    "BCHUSDT",
+    "DOGEUSDT"
+  ],
+  "time_unit": "hours from window start",
+  "window": "J2_4h",
+  "window_end_utc": "2022-01-24T17:00:00.000Z",
+  "window_start_utc": "2022-01-24T13:00:00.000Z"
+}

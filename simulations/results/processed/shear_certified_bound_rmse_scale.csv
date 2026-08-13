@@ -1,0 +1,7 @@
+panel,x_column,x_value,dimension,n_certificates_checked,dissipative_distance_lower_bound,relative_orthogonal_distance_lower_bound,bound_rmse_scale
+Non-orthogonal shear,shear_multiplier,3.0,5,25,0.09071596984152692,0.020412688017894406,0.018143193968305386
+Non-orthogonal shear,shear_multiplier,4.0,5,25,0.6278351311983793,0.1176042951785867,0.12556702623967586
+Non-orthogonal shear,shear_multiplier,5.0,5,25,1.1733875796230024,0.18611137613639947,0.23467751592460048
+Non-orthogonal shear,shear_multiplier,6.0,5,25,1.7233166440590186,0.23560700113722322,0.3446633288118037
+Non-orthogonal shear,shear_multiplier,7.0,5,25,2.2757960920856317,0.27249669631359597,0.45515921841712637
+Non-orthogonal shear,shear_multiplier,8.0,5,25,2.8298881112051446,0.3008137123095436,0.5659776222410289
