@@ -62,7 +62,7 @@ several files there turned out to be unreferenced drafts; see below):
 | `ou_exp_adjoint_cached_benchmarks` | `figures/make_benchmark_figures.qmd` (+ `benchmarks/branch/results/*.csv`) | `main.tex` |
 | `ou_ssbp_vs_lyapunov_param_stability_summary` | same | `Supplement.tex` |
 | `supp_simulations_combined_rmse_final_battery_lambda0p1_r25_best_likelihood` | `simulations/` - see `simulations/README.md` | `main.tex` |
-| `bitmex_jan2022_j2_4h_map_row` | `applications/bitmex/` | `Supplement.tex`; summarized in `main.tex` |
+| `bitmex_jan2022_j20_trade_7h_cartesian_map_row` | `applications/bitmex/` | `Supplement.tex`; summarized in `main.tex` |
 | `anole_phylogeny_drift_matrix_row_10m_fresh_2m` | `applications/anole/` | `main.tex` |
 
 ## Excluded from this repository
@@ -90,7 +90,7 @@ supporting code/data/runs were removed accordingly:
 - The earlier BitMEX 30-minute/60-minute exploratory runs and old row/three-panel
   figures have been archived locally under the ignored
   `applications/bitmex/legacy_30min_work/` folder. The active public BitMEX
-  bundle is the January 2022 four-hour post-shock analysis (see
+  bundle is the January 2022 13:00--20:00 UTC post-shock analysis (see
   `applications/bitmex/README.md`).
 - The earlier 200,000-state Anolis run and standalone selection-strength
   heatmaps are unreferenced by the active manuscript. Those local draft

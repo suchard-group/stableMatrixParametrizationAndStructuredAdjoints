@@ -1,0 +1,68 @@
+{
+  "analysis_source": "../jan2022_J20_trade_7h/events.csv",
+  "analysis_window_end_utc": "2022-01-24T20:00:00.000Z",
+  "analysis_window_start_utc": "2022-01-24T13:00:00.000Z",
+  "centering": "within-J20 analyzed-window mean log price by instrument",
+  "context_source": "BitMEX trade/bucketed 1-minute vwap from 08:00 to 13:00 UTC, followed by processed trade events from 13:00 to 20:00 UTC",
+  "display_break_labels": [
+    "8",
+    "10",
+    "12",
+    "13",
+    "15",
+    "17",
+    "20"
+  ],
+  "display_breaks_hours": [
+    8.0,
+    10.0,
+    12.0,
+    13.0,
+    15.0,
+    17.0,
+    20.0
+  ],
+  "display_xlim_hours": [
+    8.0,
+    20.0
+  ],
+  "event": "jan2022",
+  "event_label": "24 January 2022 recovery",
+  "legend_justification": [
+    0.5,
+    1.0
+  ],
+  "legend_position": [
+    0.615,
+    0.965
+  ],
+  "legend_rows": 3,
+  "rows": {
+    "analysis_by_symbol": {
+      "BCHUSDT": 211,
+      "DOGEUSDT": 748,
+      "ETHUSDT": 2459,
+      "LTCUSDT": 336,
+      "XBTUSDT": 3767
+    },
+    "analysis_window": 7521,
+    "pre_window_by_symbol": {
+      "BCHUSDT": 300,
+      "DOGEUSDT": 300,
+      "ETHUSDT": 300,
+      "LTCUSDT": 300,
+      "XBTUSDT": 300
+    },
+    "pre_window_context": 1500,
+    "total": 9021
+  },
+  "symbols": [
+    "XBTUSDT",
+    "ETHUSDT",
+    "LTCUSDT",
+    "BCHUSDT",
+    "DOGEUSDT"
+  ],
+  "time_unit": "hours from start of 2022-01-24 UTC",
+  "vertical_separator_time_hours": 13.0
+}

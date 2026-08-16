@@ -1,0 +1,13 @@
+{
+  "best_start": "lambda0p1_random02",
+  "best_task": 702,
+  "compact_files": {
+    "best_by_window": "results/compact/jan2022_J20_trade_7h/best_by_window.csv",
+    "drift_entry_summary": "results/compact/jan2022_J20_trade_7h/jan2022_J20_trade_7h_cartesian_lambda0p1_drift_entry_summary.csv",
+    "drift_matrix": "results/compact/jan2022_J20_trade_7h/matrices/jan2022_J20_trade_7h_lambda0p1_random02_manuscript_drift_matrix.csv",
+    "map_runs": "results/compact/jan2022_J20_trade_7h/map_runs_lambda0p1.csv"
+  },
+  "source_job_id": "14365609.702",
+  "source_private_project": "bitmex_5d_jan_j2_cartesian_rawR_dimprior_project",
+  "window": "jan2022_J20_trade_7h"
+}

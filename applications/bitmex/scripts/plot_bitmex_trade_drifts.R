@@ -61,8 +61,9 @@ BITMEX_FONT_SCALE <- (12 / BITMEX_SCALE_DOWN) / 9
 BITMEX_TITLE_PT <- 8 * BITMEX_FONT_SCALE
 BITMEX_AXIS_PT <- BITMEX_TITLE_PT
 BITMEX_LEGEND_PT <- 6.2 * BITMEX_FONT_SCALE
-BITMEX_INSIDE_LEGEND_PT <- 7.0
-BITMEX_HEATMAP_ENTRY_PT <- 5.4
+BITMEX_INSIDE_LEGEND_PT <- 8.3
+BITMEX_HEATMAP_ENTRY_PT <- 8.0
+BITMEX_HEATMAP_CELL_PT <- 10.0
 BITMEX_COLORBAR_TEXT_PT <- 6.2 * BITMEX_FONT_SCALE
 PAPER_ROW_LAYOUTS <- c("paper-row", "paper-row-wide-timeseries")
 
@@ -126,16 +127,16 @@ paper_theme <- function(base_size = BITMEX_AXIS_PT) {
 
 parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
   out <- list(
-    window = "jan2022_J2_4h",
+    window = "jan2022_J20_trade_7h",
     layout = "paper-row",
     burnin_fraction = 0.10,
     invertible_log = "",
-    events = "data/jan2022_day_context/events.csv",
-    metadata = "data/jan2022_day_context/metadata.json",
-    matrix_csv = "results/compact/jan2022_J2_4h/matrices/jan2022_J2_4h_lambda0p1_random04_manuscript_drift_matrix.csv",
+    events = "data/jan2022_J20_trade_7h_context/events.csv",
+    metadata = "data/jan2022_J20_trade_7h_context/metadata.json",
+    matrix_csv = "results/compact/jan2022_J20_trade_7h/matrices/jan2022_J20_trade_7h_lambda0p1_random02_manuscript_drift_matrix.csv",
     matrix_kind = "drift",
     show_diagonal = TRUE,
-    out_prefix = "bitmex_jan2022_j2_4h_map_row"
+    out_prefix = "bitmex_jan2022_j20_trade_7h_cartesian_map_row"
   )
 
   i <- 1L
@@ -180,8 +181,8 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
     i <- i + 1L
   }
 
-  if (!out$window %in% c("30", "60", "jan2022_J2_4h") && !nzchar(out$events)) {
-    stop("--window must be 30, 60, or jan2022_J2_4h unless --events is provided", call. = FALSE)
+  if (!out$window %in% c("30", "60", "jan2022_J2_4h", "jan2022_J20_trade_7h") && !nzchar(out$events)) {
+    stop("--window must be 30, 60, jan2022_J2_4h, or jan2022_J20_trade_7h unless --events is provided", call. = FALSE)
   }
   if (!out$layout %in% PAPER_ROW_LAYOUTS) {
     stop(
@@ -201,6 +202,13 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
 }
 
 default_paths <- function(window) {
+  if (window == "jan2022_J20_trade_7h") {
+    return(list(
+      events = file.path(PROJECT_ROOT, "data", "jan2022_J20_trade_7h_context", "events.csv"),
+      metadata = file.path(PROJECT_ROOT, "data", "jan2022_J20_trade_7h_context", "metadata.json"),
+      orthogonal_log = ""
+    ))
+  }
   if (window == "jan2022_J2_4h") {
     return(list(
       events = file.path(PROJECT_ROOT, "data", "jan2022_day_context", "events.csv"),
@@ -468,7 +476,17 @@ display_vmax <- function(display) {
   max(0.01, max(finite))
 }
 
-series_plot <- function(events, symbols, window, legend_style = "bottom", legend_rows = 3L) {
+format_heatmap_label <- function(value) {
+  rounded <- round(value, 2)
+  rounded[abs(rounded) < 0.005] <- 0
+  sprintf("%.2f", rounded)
+}
+
+json_or <- function(value, default) {
+  if (is.null(value)) default else value
+}
+
+series_plot <- function(events, symbols, window, legend_style = "bottom", legend_rows = 3L, inside_legend_rows = 4L) {
   symbol_linetypes <- line_types(symbols)
   if (!legend_style %in% c("bottom", "inside", "none")) {
     stop("Unknown legend style: ", legend_style, call. = FALSE)
@@ -487,16 +505,17 @@ series_plot <- function(events, symbols, window, legend_style = "bottom", legend
     ) +
     paper_theme() +
     theme(
-      legend.position = if (legend_style == "none") "none" else if (inside_legend) c(0.94, 0.035) else "bottom",
+      legend.position = if (legend_style == "none") "none" else if (inside_legend) "inside" else "bottom",
+      legend.position.inside = if (inside_legend) c(0.94, 0.035) else c(0.5, 0.5),
       legend.justification = if (inside_legend) c(1, 0) else "center",
       legend.direction = "horizontal",
       legend.background = element_rect(fill = "transparent", colour = NA),
       legend.box.background = element_rect(fill = "transparent", colour = NA),
       legend.text = element_text(size = if (inside_legend) BITMEX_INSIDE_LEGEND_PT else BITMEX_LEGEND_PT, family = FIG_FONT),
-      legend.key.width = grid::unit(if (inside_legend) 0.15 else 0.22, "inches"),
-      legend.key.height = grid::unit(if (inside_legend) 0.065 else 0.10, "inches"),
-      legend.spacing.x = grid::unit(if (inside_legend) 0.3 else 0.04, "inches"),
-      legend.key.spacing.x = grid::unit(if (inside_legend) 0.3 else 0.04, "inches"),
+      legend.key.width = grid::unit(if (inside_legend) 0.18 else 0.22, "inches"),
+      legend.key.height = grid::unit(if (inside_legend) 0.075 else 0.10, "inches"),
+      legend.spacing.x = grid::unit(if (inside_legend) 0.38 else 0.04, "inches"),
+      legend.key.spacing.x = grid::unit(if (inside_legend) 0.38 else 0.04, "inches"),
       legend.spacing.y = grid::unit(0, "pt"),
       legend.margin = margin(0, 0, 0, 0, "pt"),
       legend.box.margin = if (inside_legend) margin(0, 0, 0, 0, "pt") else margin(0, 18, 0, 18, "pt"),
@@ -504,7 +523,7 @@ series_plot <- function(events, symbols, window, legend_style = "bottom", legend
     ) +
     guides(
       colour = guide_legend(
-        nrow = if (inside_legend) 4L else legend_rows,
+        nrow = if (inside_legend) inside_legend_rows else legend_rows,
         byrow = TRUE,
         override.aes = list(linewidth = if (inside_legend) 0.8 else 1.0, linetype = unname(symbol_linetypes))
       ),
@@ -525,7 +544,7 @@ heatmap_plot <- function(matrix, symbols, vmax, matrix_kind = "selection", show_
       target = factor(symbols[.data$target_index], levels = rev(symbols)),
       source = factor(symbols[.data$source_index], levels = symbols),
       value = display[cbind(.data$target_index, .data$source_index)],
-      label = ifelse(is.na(.data$value), "", sprintf("%.3g", .data$value)),
+      label = ifelse(is.na(.data$value), "", format_heatmap_label(.data$value)),
       text_color = ifelse(abs(.data$value) > 0.5 * vmax, "white", "black")
     )
 
@@ -537,7 +556,7 @@ heatmap_plot <- function(matrix, symbols, vmax, matrix_kind = "selection", show_
       geom_text(
         aes(label = .data$label, colour = .data$text_color),
         family = FIG_FONT,
-        size = 2.6,
+        size = BITMEX_HEATMAP_CELL_PT / ggplot2::.pt,
         show.legend = FALSE
       )
   }
@@ -587,11 +606,17 @@ heatmap_plot <- function(matrix, symbols, vmax, matrix_kind = "selection", show_
         angle = 45,
         hjust = 1,
         vjust = 1,
+        margin = margin(t = 0, unit = "pt"),
         lineheight = 0.78
       ),
-      axis.text.y = element_text(size = BITMEX_HEATMAP_ENTRY_PT, family = FIG_FONT, colour = "black"),
+      axis.text.y = element_text(
+        size = BITMEX_HEATMAP_ENTRY_PT,
+        family = FIG_FONT,
+        colour = "black",
+        margin = margin(r = -1.0, unit = "pt")
+      ),
       axis.title.x = element_text(margin = margin(t = 14, unit = "pt")),
-      axis.title.y = element_text(margin = margin(r = 14, unit = "pt")),
+      axis.title.y = element_text(margin = margin(r = 20, unit = "pt")),
       panel.border = element_rect(color = "black", fill = NA, linewidth = 0.35),
       panel.grid = element_blank(),
       legend.position = "right",
@@ -635,7 +660,8 @@ make_paper_row_figure <- function(window, events, symbols, drift_matrix, out_pre
   if (!show_diagonal) diag(display) <- NA_real_
   vmax <- display_vmax(display)
   legend_style <- if (layout == "paper-row") "inside" else "bottom"
-  time_series <- series_plot(events, symbols, window, legend_style = legend_style)
+  inside_legend_rows <- if (!is.null(time_context$legend_rows)) as.integer(time_context$legend_rows) else 4L
+  time_series <- series_plot(events, symbols, window, legend_style = legend_style, inside_legend_rows = inside_legend_rows)
   if (!is.null(time_context)) {
     time_series <- time_series +
       geom_vline(xintercept = time_context$separator, linewidth = 0.45, linetype = "22", colour = "black") +
@@ -646,8 +672,9 @@ make_paper_row_figure <- function(window, events, symbols, drift_matrix, out_pre
       ) +
       coord_cartesian(xlim = time_context$xlim) +
       theme(
-        legend.position = c(0.94, 0.965),
-        legend.justification = c(1, 1)
+        legend.position = "inside",
+        legend.position.inside = time_context$legend_position,
+        legend.justification = time_context$legend_justification
       )
   }
   plot <- suppressWarnings(
@@ -692,11 +719,19 @@ main <- function() {
   time_context <- NULL
   if (!is.null(metadata$vertical_separator_time_hours)) {
     attr(events, "time_axis_label") <- "UTC hour on 24 January 2022"
+    display_xlim <- as.numeric(json_or(metadata$display_xlim_hours, c(8, 17)))
+    display_breaks <- as.numeric(json_or(metadata$display_breaks_hours, c(8, 10, 12, 13, 15, 17)))
+    display_labels <- as.character(json_or(metadata$display_break_labels, display_breaks))
+    legend_position <- as.numeric(json_or(metadata$legend_position, c(0.94, 0.965)))
+    legend_justification <- as.numeric(json_or(metadata$legend_justification, c(1, 1)))
     time_context <- list(
       separator = as.numeric(metadata$vertical_separator_time_hours),
-      xlim = c(8, 17),
-      breaks = c(8, 10, 12, 13, 15, 17),
-      labels = c("8", "10", "12", "13", "15", "17")
+      xlim = display_xlim,
+      breaks = display_breaks,
+      labels = display_labels,
+      legend_position = legend_position,
+      legend_justification = legend_justification,
+      legend_rows = as.integer(json_or(metadata$legend_rows, 4L))
     )
   }
 
@@ -716,6 +751,8 @@ main <- function() {
     args$out_prefix
   } else if (args$window == "jan2022_J2_4h") {
     "bitmex_jan2022_j2_4h_map_row"
+  } else if (args$window == "jan2022_J20_trade_7h") {
+    "bitmex_jan2022_j20_trade_7h_cartesian_map_row"
   } else {
     paste0("bitmex_", args$window, "min_trade_data_orthogonal_row")
   }

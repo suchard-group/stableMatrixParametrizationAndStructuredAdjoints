@@ -1,0 +1,66 @@
+{
+  "best_start": "lambda0p1_random02",
+  "best_task": 702,
+  "block_parametrization": "normalized Cartesian stable block coordinates with ordered effective block rates",
+  "block_rate_prior": {
+    "mu": 0.0,
+    "sigma": 1.0,
+    "type": "logNormalPrior"
+  },
+  "block_ratio_prior": {
+    "lower": -1.0,
+    "transform": "logit((ratio + 1) / 2)",
+    "type": "uniformPrior",
+    "upper": 1.0
+  },
+  "block_t_prior": {
+    "mu": 0.0,
+    "sigma": 1.0,
+    "type": "logNormalPrior"
+  },
+  "centering": "within-window mean log price by instrument",
+  "data_availability_csv": "data/jan2022_J20_trade_7h/data_availability.csv",
+  "diffusion_correlation_prior": {
+    "shapeParameter": 1.0,
+    "type": "LKJCorrelationPrior"
+  },
+  "diffusion_diagonal_prior": {
+    "scale": 0.5,
+    "shape": 0.5,
+    "type": "gammaPrior"
+  },
+  "duration_hours": 7.0,
+  "event": "jan2022",
+  "event_csv": "data/jan2022_J20_trade_7h/events.csv",
+  "event_label": "24 January 2022 recovery",
+  "mean_prior": {
+    "mean": 0.0,
+    "stdev": 1.0,
+    "type": "normalPrior"
+  },
+  "observation_error_variance": 1e-05,
+  "rotation_regularization": "log p(R) = C + lambda log|det R| - lambda * dim(R) * ||R||_F^2 / 2",
+  "rows": {
+    "by_symbol": {
+      "BCHUSDT": 211,
+      "DOGEUSDT": 748,
+      "ETHUSDT": 2459,
+      "LTCUSDT": 336,
+      "XBTUSDT": 3767
+    },
+    "total": 7521
+  },
+  "shrinkage_lambda": 0.1,
+  "stable_matrix_chart": "normalized-Cartesian H-SSBP blocks with general dense-R raw-entry invertible basis",
+  "symbols": [
+    "XBTUSDT",
+    "ETHUSDT",
+    "LTCUSDT",
+    "BCHUSDT",
+    "DOGEUSDT"
+  ],
+  "time_unit": "hours from window start",
+  "window": "J20_trade_7h",
+  "window_end_utc": "2022-01-24T20:00:00.000Z",
+  "window_start_utc": "2022-01-24T13:00:00.000Z"
+}

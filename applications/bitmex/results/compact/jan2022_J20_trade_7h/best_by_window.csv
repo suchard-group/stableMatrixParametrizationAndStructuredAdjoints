@@ -1,0 +1,2 @@
+rank,task_id,window,start,status,posterior,delta_posterior,likelihood,prior,gnorm,cond_R,iterations,optimizer_return,slowest_half_life_hours,eigenvalues_selection,effective_block_rates
+1,702,J20_trade_7h,lambda0p1_random02,ok,34539.6048121,0,34533.5468383,6.05797386888,0.359996,8.24162873747,441,LBFGSERR_ROUNDING_ERROR,2.84487395392,0.753500831676+0i;0.524444230119+0i;0.245987557983+0i;0.243647764994+0i;0.369393949511+0i,0.306520857252;0.638972530897
