@@ -1,0 +1,5 @@
+chain	start_family	seed	xml_file	chain_length_states	file_log_every_states	burnin_fraction	retained_draws
+1	posterior_median	2026081521	xml/chains/anole_6char_orthogonal_common_priors_2m_chain01.xml	2000000	100	0.2	16000
+2	posterior_median	2026081524	xml/chains/anole_6char_orthogonal_common_priors_2m_chain02.xml	2000000	100	0.2	16000
+3	paper_xml_start	2026081528	xml/chains/anole_6char_orthogonal_common_priors_2m_chain03.xml	2000000	100	0.2	16000
+4	paper_xml_start	2026081530	xml/chains/anole_6char_orthogonal_common_priors_2m_chain04.xml	2000000	100	0.2	16000

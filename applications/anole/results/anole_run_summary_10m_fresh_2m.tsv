@@ -1,9 +1,13 @@
 quantity	value
+chain_count	4
 chain_length_states	2000000
 file_log_every_states	100
 burnin_fraction	0.2
-post_burnin_logged_samples	16000
+post_burnin_logged_samples	64000
 first_post_burnin_state	400100
-last_state	2000000
-drift_entry_ess_min_reported	>900
+max_rank_normalized_rhat_reported	1.002
+bulk_ess_min_reported	2300
+bulk_ess_median_reported	7900
+tail_ess_min_reported	2100
+tail_ess_median_reported	10400
 matrix_convention	Hurwitz drift A = -selection-strength matrix logged by BEAST

@@ -3,7 +3,7 @@
 
     <!-- Anolis morphometric data from Liam Revell phytools R book. -->
     <!-- Variant: normalized-Cartesian stable blocks with manuscript common priors. -->
-    <!-- Manuscript common-prior Cartesian run: nSteps=10, stepSize=0.0125, chainLength=2000000. -->
+    <!-- Manuscript common-prior Cartesian chain 3: start family paper_xml_start, nSteps=10, stepSize=0.0125, chainLength=2000000. -->
     <!-- Non-block priors match the main-result private XML: Gamma(0.5,0.5) diffusion diagonals, -->
     <!-- LKJ(1) correlations, mean N(0,1), and Givens-angle N(0,0.25^2) with bounded chart. -->
     <!-- Block priors use the normalized-Cartesian common-prior chart: lognormal rate/t and uniform ratio. -->
@@ -339,20 +339,20 @@
             <cachedMatrixInverse id="anole.precision.matrix">
                 <compoundSymmetricMatrix id="anole.variance.matrix" asCorrelation="true" isCholesky="true">
                     <diagonal>
-                        <parameter id="anole.variance.diagonal" value="0.656772704999 0.623694890055 0.57594705691 0.511775871976 0.614656697137 1.03505137236" lower="0 0 0 0 0 0"/>
+                        <parameter id="anole.variance.diagonal" value="1 1 1 1 1 1" lower="0 0 0 0 0 0"/>
                     </diagonal>
                     <offDiagonal>
-                        <parameter id="anole.variance.offDiagonal" value="0.970552290545 0.91265494639 0.934292002159 0.511599479306 0.811298324291 -0.0523427722896 -0.0508970769177 0.282042300991 -0.238404741933 0.265543846686 0.394627581347 0.163770717758 -0.18616364473 -0.129288093909 -0.0889514195056" lower="-0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999" upper="0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999"/>
+                        <parameter id="anole.variance.offDiagonal" value="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" lower="-0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999 -0.999" upper="0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999 0.999"/>
                     </offDiagonal>
                 </compoundSymmetricMatrix>
             </cachedMatrixInverse>
         </precisionMatrix>
     </multivariateDiffusionModel>
 
-    <parameter id="blockRate" value="0.150542422566 0.191160322757 0.352968934371" lower="0 0 0"/>
-    <parameter id="blockRatio" value="-0.582980569854 -0.821086510346 -0.107659345692" lower="-1 -1 -1" upper="1 1 1"/>
-    <parameter id="blockT" value="0.135641939695 0.164733922685 1.06257894958" lower="0 0 0"/>
-    <parameter id="rotation.angle" value="0.0602497885259 -0.129011120111 0.269678536789 0.478972008632 0.0789377922279 -0.0438837778056 0.0592755327891 0.0956271933529 0.0479736216915 0.124787100474 -0.335478496984 -0.15329399257 -0.0303649200049 0.243661262123 -0.0205577886587" lower="-1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966" upper="1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966"/>
+    <parameter id="blockRate" value="1 0.25 0.25" lower="0 0 0"/>
+    <parameter id="blockRatio" value="0 0 0" lower="-1 -1 -1" upper="1 1 1"/>
+    <parameter id="blockT" value="0.05 0.05 0.05" lower="0 0 0"/>
+    <parameter id="rotation.angle" value="0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1 0.1" lower="-1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966 -1.5707963267948966" upper="1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966 1.5707963267948966"/>
 
     <givensRotationMatrixParameter id="rotation" dimension="6">
         <angles><parameter idref="rotation.angle"/></angles>
@@ -365,12 +365,12 @@
         <blockT><parameter idref="blockT"/></blockT>
     </blockDiagonalNormalizedCartesianStableMatrixParameter>
 
-    <parameter id="anole.opt.1" value="-0.0542635579432"/>
-    <parameter id="anole.opt.2" value="-0.0752585382263"/>
-    <parameter id="anole.opt.3" value="-0.0590138044074"/>
-    <parameter id="anole.opt.4" value="-0.063616897214"/>
-    <parameter id="anole.opt.5" value="-0.0578568411518"/>
-    <parameter id="anole.opt.6" value="-0.0723730639136"/>
+    <parameter id="anole.opt.1" value="0"/>
+    <parameter id="anole.opt.2" value="0"/>
+    <parameter id="anole.opt.3" value="0"/>
+    <parameter id="anole.opt.4" value="0"/>
+    <parameter id="anole.opt.5" value="0"/>
+    <parameter id="anole.opt.6" value="0"/>
 
     <compoundParameter id="anole.meanParameter">
         <parameter idref="anole.opt.1"/>
@@ -495,7 +495,7 @@
             <column label="rate" sf="6" width="16"><parameter idref="blockRate"/></column>
             <column label="ratio" sf="6" width="16"><parameter idref="blockRatio"/></column>
         </log>
-        <log id="fileLog" logEvery="100" fileName="anole_6char_orthogonal_common_priors_2m.log" overwrite="true">
+        <log id="fileLog" logEvery="100" fileName="anole_6char_orthogonal_common_priors_2m_chain03.log" overwrite="true">
             <joint idref="joint"/>
             <likelihood idref="likelihood"/>
             <matrixParameter idref="anole.variance.matrix"/>
@@ -509,7 +509,7 @@
             <parameter idref="orthBlock"/>
         </log>
         <logCheckpoint id="checkpointFileLog" checkpointEvery="100000" checkpointFinal="2000000"
-                       fileName="anole_6char_orthogonal_common_priors_2m.chkpt"
+                       fileName="anole_6char_orthogonal_common_priors_2m_chain03.chkpt"
                        overwrite="true"/>
     </mcmc>
 </beast>

@@ -14,11 +14,19 @@ data/
 
 xml/
   anole_6char_orthogonal_common_priors_2m.xml
+  chains/
+    anole_6char_orthogonal_common_priors_2m_chain01.xml
+    anole_6char_orthogonal_common_priors_2m_chain02.xml
+    anole_6char_orthogonal_common_priors_2m_chain03.xml
+    anole_6char_orthogonal_common_priors_2m_chain04.xml
 
 results/
   anole_selection_strength_posterior_median_10m_fresh_2m.tsv
   anole_drift_entry_hpd_reported_10m_fresh_2m.tsv
   anole_block_regime_reported_10m_fresh_2m.tsv
+  anole_block_regime_by_chain_10m_fresh_2m.tsv
+  anole_chain_details_10m_fresh_2m.tsv
+  anole_rank_diagnostics_10m_fresh_2m.tsv
   anole_run_summary_10m_fresh_2m.tsv
 
 scripts/
@@ -33,17 +41,22 @@ The matrix TSV stores the positive BEAST selection-strength matrix; the plotting
 scripts negate it to the manuscript Hurwitz drift convention, so rows are target
 traits and columns are source traits.
 
-The long-chain summary used in `main.tex` is a 2,000,000-state orthogonal
-H-SSBP chain, logged every 100 states with 20% burn-in, leaving 16,000
-post-burn-in logged samples. The XML records the common-priors setup used for
-this analysis: ordered block rates, `blockTheta ~ N(0, 0.5^2)`,
-`blockT ~ HN(0, 0.5)`, `blockRho ~ HN(0, 1.5)`,
-`rotation.angle ~ N(0, 0.1^2)`, and diffusion marginal scales
-`HN(0, 0.1)`.
+The long-chain summary used in `main.tex` pools four 2,000,000-state
+orthogonal H-SSBP chains, logged every 100 states with 20% burn-in, yielding
+64,000 retained draws. The chain-details table records two starts initialized
+at the posterior-coordinate median and two starts initialized from the paper
+XML values. The chain-specific XMLs record the exact starting values used for
+the four chains. They match the reported Anolis result:
+normalized-Cartesian stable blocks with ordered
+`blockRate`, `blockRatio ~ Uniform(-1,1)`, `blockT ~ LogNormal(0,1)`,
+`rotation.angle ~ N(0, 0.25^2)`, `anole.meanParameter ~ N(0,1)`, LKJ(1)
+correlations, and `Gamma(0.5,0.5)` diffusion marginal variances.
 
 The compact reported TSVs are the direct public source for the manuscript prose:
-the four off-diagonal HPD intervals excluding zero, the three complex-block
-proportions and approximate switching counts, and the run-length/ESS summary.
+the pooled posterior median drift heat map, the four off-diagonal HPD intervals
+excluding zero, the three complex-block proportions and approximate switching
+ranges, the chain-level block-regime counts, and the rank-normalized
+`\widehat R`/ESS summaries.
 The earlier 200,000-state draft run is retained locally under
 `legacy_200k_work/`, which is ignored by Git.
 
@@ -66,9 +79,11 @@ run from this directory, for example:
 
 ```bash
 ../../run_local_beast.sh /path/to/beast.jar \
-  xml/anole_6char_orthogonal_common_priors_2m.xml \
-  202607171
+  xml/chains/anole_6char_orthogonal_common_priors_2m_chain01.xml \
+  2026081521
 ```
 
-The checked-in compact summaries are the exact manuscript inputs; rerunning the
-MCMC produces a new stochastic trace to compare against them.
+Repeat with the XML paths and seeds in
+`results/anole_chain_details_10m_fresh_2m.tsv` to recreate the four-chain
+design. The checked-in compact summaries are the exact manuscript inputs;
+rerunning the MCMC produces new stochastic traces to compare against them.

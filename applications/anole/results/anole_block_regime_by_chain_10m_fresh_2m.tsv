@@ -1,0 +1,13 @@
+chain	source_task	block	complex_proportion	transition_count	visited_real	visited_complex
+1	1	1	0.6068	5015	true	true
+1	1	2	0.4715	5886	true	true
+1	1	3	0.7901	1666	true	true
+2	4	1	0.5915	5252	true	true
+2	4	2	0.4711	6190	true	true
+2	4	3	0.8123	1406	true	true
+3	8	1	0.6051	4971	true	true
+3	8	2	0.4716	5787	true	true
+3	8	3	0.8012	1552	true	true
+4	10	1	0.5967	4531	true	true
+4	10	2	0.4568	5482	true	true
+4	10	3	0.7754	1520	true	true

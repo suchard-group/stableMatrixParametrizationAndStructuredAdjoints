@@ -1,4 +1,4 @@
-block	complex_proportion_reported	real_proportion_reported	switches_reported_approx
-1	0.67	0.33	5300
-2	0.51	0.49	6300
-3	0.79	0.21	1700
+block	complex_proportion_reported	real_proportion_reported	transition_min_reported_approx	transition_max_reported_approx
+1	0.60	0.40	4500	5300
+2	0.47	0.53	5500	6200
+3	0.80	0.20	1400	1700

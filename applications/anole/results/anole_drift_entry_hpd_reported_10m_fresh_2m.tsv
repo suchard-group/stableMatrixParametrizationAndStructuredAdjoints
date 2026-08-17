@@ -1,5 +1,5 @@
 target	source	median_drift	hpd_low_95	hpd_high_95	excludes_zero
-SVL	TL	-0.34	-0.69	-0.03	true
-HLL	LAM	-0.48	-0.98	-0.07	true
-HLL	TL	0.51	0.10	0.96	true
-LAM	TL	0.68	0.18	1.39	true
+SVL	TL	-0.34	-0.69	-0.02	true
+HLL	LAM	-0.47	-0.97	-0.07	true
+HLL	TL	0.53	0.12	0.99	true
+LAM	TL	0.69	0.18	1.40	true

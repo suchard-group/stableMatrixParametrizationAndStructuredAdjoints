@@ -133,7 +133,7 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
     invertible_log = "",
     events = "data/jan2022_J20_trade_7h_context/events.csv",
     metadata = "data/jan2022_J20_trade_7h_context/metadata.json",
-    matrix_csv = "results/compact/jan2022_J20_trade_7h/matrices/jan2022_J20_trade_7h_lambda0p1_random02_manuscript_drift_matrix.csv",
+    matrix_csv = "results/compact/jan2022_J20_trade_7h/matrices/jan2022_J20_trade_7h_lambda0p1_random09_manuscript_drift_matrix.csv",
     matrix_kind = "drift",
     show_diagonal = TRUE,
     out_prefix = "bitmex_jan2022_j20_trade_7h_cartesian_map_row"
@@ -181,8 +181,8 @@ parse_args <- function(argv = commandArgs(trailingOnly = TRUE)) {
     i <- i + 1L
   }
 
-  if (!out$window %in% c("30", "60", "jan2022_J2_4h", "jan2022_J20_trade_7h") && !nzchar(out$events)) {
-    stop("--window must be 30, 60, jan2022_J2_4h, or jan2022_J20_trade_7h unless --events is provided", call. = FALSE)
+  if (!out$window %in% c("jan2022_J20_trade_7h")) {
+    stop("--window must be jan2022_J20_trade_7h", call. = FALSE)
   }
   if (!out$layout %in% PAPER_ROW_LAYOUTS) {
     stop(
@@ -209,19 +209,7 @@ default_paths <- function(window) {
       orthogonal_log = ""
     ))
   }
-  if (window == "jan2022_J2_4h") {
-    return(list(
-      events = file.path(PROJECT_ROOT, "data", "jan2022_day_context", "events.csv"),
-      metadata = file.path(PROJECT_ROOT, "data", "jan2022_day_context", "metadata.json"),
-      orthogonal_log = ""
-    ))
-  }
-  run <- paste0("bitmex_orthogonal_", window, "min_shared_top16")
-  list(
-    events = file.path(PROJECT_ROOT, "runs", run, "inputs", paste0("bitmex_real_", window, "min_shared_top16_events.csv")),
-    metadata = file.path(PROJECT_ROOT, "runs", run, "inputs", paste0("bitmex_real_", window, "min_shared_top16_metadata.json")),
-    orthogonal_log = file.path(PROJECT_ROOT, "results", "raw", run, "output", "job_001", paste0(run, ".log"))
-  )
+  stop("No default paths are defined for --window ", window, ". Provide --events and --metadata.", call. = FALSE)
 }
 
 absolute_path <- function(path) {
@@ -543,13 +531,13 @@ heatmap_plot <- function(matrix, symbols, vmax, matrix_kind = "selection", show_
     mutate(
       target = factor(symbols[.data$target_index], levels = rev(symbols)),
       source = factor(symbols[.data$source_index], levels = symbols),
-      value = display[cbind(.data$target_index, .data$source_index)],
-      label = ifelse(is.na(.data$value), "", format_heatmap_label(.data$value)),
-      text_color = ifelse(abs(.data$value) > 0.5 * vmax, "white", "black")
+      fill_value = display[cbind(.data$target_index, .data$source_index)],
+      label = ifelse(is.na(.data$fill_value), "", format_heatmap_label(.data$fill_value)),
+      text_color = ifelse(abs(.data$fill_value) > 0.5 * vmax, "white", "black")
     )
 
   annotate_values <- length(symbols) <= 6L
-  plot <- ggplot(heatmap_data, aes(.data$source, .data$target, fill = .data$value)) +
+  plot <- ggplot(heatmap_data, aes(.data$source, .data$target, fill = .data$fill_value)) +
     geom_tile(color = "white", linewidth = 0.14)
   if (annotate_values) {
     plot <- plot +
@@ -749,12 +737,10 @@ main <- function() {
   }
   out_prefix <- if (nzchar(args$out_prefix)) {
     args$out_prefix
-  } else if (args$window == "jan2022_J2_4h") {
-    "bitmex_jan2022_j2_4h_map_row"
   } else if (args$window == "jan2022_J20_trade_7h") {
     "bitmex_jan2022_j20_trade_7h_cartesian_map_row"
   } else {
-    paste0("bitmex_", args$window, "min_trade_data_orthogonal_row")
+    paste0("bitmex_", args$window, "_map_row")
   }
 
   if (nzchar(args$invertible_log)) {

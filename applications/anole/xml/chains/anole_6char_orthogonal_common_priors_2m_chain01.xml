@@ -3,7 +3,7 @@
 
     <!-- Anolis morphometric data from Liam Revell phytools R book. -->
     <!-- Variant: normalized-Cartesian stable blocks with manuscript common priors. -->
-    <!-- Manuscript common-prior Cartesian run: nSteps=10, stepSize=0.0125, chainLength=2000000. -->
+    <!-- Manuscript common-prior Cartesian chain 1: start family posterior_median, nSteps=10, stepSize=0.0125, chainLength=2000000. -->
     <!-- Non-block priors match the main-result private XML: Gamma(0.5,0.5) diffusion diagonals, -->
     <!-- LKJ(1) correlations, mean N(0,1), and Givens-angle N(0,0.25^2) with bounded chart. -->
     <!-- Block priors use the normalized-Cartesian common-prior chart: lognormal rate/t and uniform ratio. -->
@@ -495,7 +495,7 @@
             <column label="rate" sf="6" width="16"><parameter idref="blockRate"/></column>
             <column label="ratio" sf="6" width="16"><parameter idref="blockRatio"/></column>
         </log>
-        <log id="fileLog" logEvery="100" fileName="anole_6char_orthogonal_common_priors_2m.log" overwrite="true">
+        <log id="fileLog" logEvery="100" fileName="anole_6char_orthogonal_common_priors_2m_chain01.log" overwrite="true">
             <joint idref="joint"/>
             <likelihood idref="likelihood"/>
             <matrixParameter idref="anole.variance.matrix"/>
@@ -509,7 +509,7 @@
             <parameter idref="orthBlock"/>
         </log>
         <logCheckpoint id="checkpointFileLog" checkpointEvery="100000" checkpointFinal="2000000"
-                       fileName="anole_6char_orthogonal_common_priors_2m.chkpt"
+                       fileName="anole_6char_orthogonal_common_priors_2m_chain01.chkpt"
                        overwrite="true"/>
     </mcmc>
 </beast>

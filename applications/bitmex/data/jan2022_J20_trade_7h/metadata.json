@@ -1,6 +1,6 @@
 {
-  "best_start": "lambda0p1_random02",
-  "best_task": 702,
+  "best_start": "lambda0p1_random09",
+  "best_task": 709,
   "block_parametrization": "normalized Cartesian stable block coordinates with ordered effective block rates",
   "block_rate_prior": {
     "mu": 0.0,
