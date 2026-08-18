@@ -65,47 +65,6 @@ several files there turned out to be unreferenced drafts; see below):
 | `bitmex_jan2022_j20_trade_7h_cartesian_map_row` | `applications/bitmex/` | `Supplement.tex`; summarized in `main.tex` |
 | `anole_phylogeny_drift_matrix_row_10m_fresh_2m` | `applications/anole/` | `main.tex` |
 
-## Excluded from this repository
-
-While curating this repository, every figure/table file under
-`manuscript/figures/` and `manuscript/tables/` was checked against actual
-`\includegraphics`/`\input` usage in the compiled manuscript sources, not
-just its presence in those folders. Several turned out to be unreferenced —
-either superseded by a later consolidated figure, or cut drafts — and their
-supporting code/data/runs were removed accordingly:
-
-- **Benchmarks**: a standalone kernel figure, dt-stress, numerical-stability,
-  lyapunov-param-stability, and matched-param-stability figures, a
-  gradient-stress figure/table, a one-row alternate layout, and comparisons
-  against other software's time-series and tree likelihoods
-  (`ou_kernel_benchmarks`, `ou_dt_stress_benchmarks`,
-  `ou_numerical_stability_benchmarks`, `ou_lyapunov_param_stability_benchmarks`,
-  `ou_matched_param_stability_benchmarks`, `ou_gradient_stress_benchmarks`,
-  `smbp_gradient_stress_table`, `ou_ssbp_vs_lyapunov_param_stability_summary_one_row`,
-  `ou_time_series_benchmarks`, `ou_tree_benchmarks`) are not referenced by
-  any compiled manuscript file. See `figures/README.md` for exactly what was
-  removed vs. disabled and why.
-- Two hand-authored qualitative comparison tables (`stableMatricesTable`,
-  `stableMatricesWithAdjointsTable`) are likewise unreferenced.
-- The earlier BitMEX 30-minute/60-minute exploratory runs and old row/three-panel
-  figures have been archived locally under the ignored
-  `applications/bitmex/legacy_30min_work/` folder. The active public BitMEX
-  bundle is the January 2022 13:00--20:00 UTC post-shock analysis (see
-  `applications/bitmex/README.md`).
-- The earlier 200,000-state Anolis run and standalone selection-strength
-  heatmaps are unreferenced by the active manuscript. Those local draft
-  artifacts are archived under the ignored `applications/anole/legacy_200k_work/`
-  folder. The active public Anolis bundle is the 2,000,000-state common-priors
-  summary used by `main.tex` (see `applications/anole/README.md`).
-- Two additional real-data analyses (an *Aquilegia* pollination dataset and
-  a PhysioNet Challenge 2012 time-series analysis) were explored during
-  development but do not appear in the manuscript at all, so their private
-  code/data are not included here.
-- Personal batch-system submission scripts are not included;
-  `run_local_beast.sh` and the scripts under `simulations/scripts/` cover
-  running generated XMLs on a single machine or any scheduler-neutral task
-  runner.
-
 ## License
 
 MIT — see `LICENSE`.
